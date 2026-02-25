@@ -46,10 +46,15 @@ export interface BallByBallRecord {
     isFreeHit: boolean;
     bowlerId: PlayerId;
 }
+export interface Toss {
+    choice: TossChoice;
+    winnerTeamId: TeamId;
+}
 export interface Match {
     id: MatchId;
     isFinished: boolean;
     deliveries: Array<BallByBallRecord>;
+    toss: Toss;
     winner?: TeamId;
     teamAId: TeamId;
     teamBId: TeamId;
@@ -126,10 +131,14 @@ export interface Team {
     squad: Array<PlayerId>;
     players: Array<Player>;
 }
+export enum TossChoice {
+    Bat = "Bat",
+    Bowl = "Bowl"
+}
 export interface backendInterface {
     addPlayer(teamId: TeamId, name: string, battingOrder: bigint, isBowler: boolean): Promise<PlayerId>;
     addTeam(name: string, color: string, logo: string): Promise<TeamId>;
-    createMatch(teamAId: TeamId, teamBId: TeamId, rules: MatchRules): Promise<MatchId>;
+    createMatch(teamAId: TeamId, teamBId: TeamId, rules: MatchRules, toss: Toss): Promise<MatchId>;
     getAllTeams(): Promise<Array<Team>>;
     getDeliveriesByInnings(matchId: MatchId, inningsId: InningsId): Promise<Array<Delivery>>;
     getMatch(matchId: MatchId): Promise<Match | null>;

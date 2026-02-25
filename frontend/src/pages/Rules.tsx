@@ -11,11 +11,14 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { useTournamentRules } from "@/hooks/useQueries";
+import { useGetTournamentRules } from "@/hooks/useQueries";
 import ConfigureTournamentRulesModal from "@/components/ConfigureTournamentRulesModal";
 import { cricketRules, getTournamentRules } from "@/data/cricketRules";
 import QueryErrorState from "@/components/QueryErrorState";
 import type { CricketRuleCategory } from "@/data/cricketRules";
+
+// suppress unused import warning — Loader2 used in skeleton fallback
+void Loader2;
 
 export default function Rules() {
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -25,7 +28,7 @@ export default function Rules() {
     isError,
     error,
     refetch,
-  } = useTournamentRules();
+  } = useGetTournamentRules();
 
   const tournamentRuleCategories: CricketRuleCategory[] = tournamentRules
     ? getTournamentRules(tournamentRules)

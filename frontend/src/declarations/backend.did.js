@@ -17,6 +17,11 @@ export const MatchRules = IDL.Record({
   'oversLimit' : IDL.Nat,
   'powerplayOvers' : IDL.Vec(IDL.Nat),
 });
+export const TossChoice = IDL.Variant({ 'Bat' : IDL.Null, 'Bowl' : IDL.Null });
+export const Toss = IDL.Record({
+  'choice' : TossChoice,
+  'winnerTeamId' : TeamId,
+});
 export const MatchId = IDL.Nat;
 export const Player = IDL.Record({
   'id' : PlayerId,
@@ -80,6 +85,7 @@ export const Match = IDL.Record({
   'id' : MatchId,
   'isFinished' : IDL.Bool,
   'deliveries' : IDL.Vec(BallByBallRecord),
+  'toss' : Toss,
   'winner' : IDL.Opt(TeamId),
   'teamAId' : TeamId,
   'teamBId' : TeamId,
@@ -118,7 +124,7 @@ export const TournamentRules = IDL.Record({
 export const idlService = IDL.Service({
   'addPlayer' : IDL.Func([TeamId, IDL.Text, IDL.Nat, IDL.Bool], [PlayerId], []),
   'addTeam' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [TeamId], []),
-  'createMatch' : IDL.Func([TeamId, TeamId, MatchRules], [MatchId], []),
+  'createMatch' : IDL.Func([TeamId, TeamId, MatchRules, Toss], [MatchId], []),
   'getAllTeams' : IDL.Func([], [IDL.Vec(Team)], ['query']),
   'getDeliveriesByInnings' : IDL.Func(
       [MatchId, InningsId],
@@ -148,6 +154,8 @@ export const idlFactory = ({ IDL }) => {
     'oversLimit' : IDL.Nat,
     'powerplayOvers' : IDL.Vec(IDL.Nat),
   });
+  const TossChoice = IDL.Variant({ 'Bat' : IDL.Null, 'Bowl' : IDL.Null });
+  const Toss = IDL.Record({ 'choice' : TossChoice, 'winnerTeamId' : TeamId });
   const MatchId = IDL.Nat;
   const Player = IDL.Record({
     'id' : PlayerId,
@@ -211,6 +219,7 @@ export const idlFactory = ({ IDL }) => {
     'id' : MatchId,
     'isFinished' : IDL.Bool,
     'deliveries' : IDL.Vec(BallByBallRecord),
+    'toss' : Toss,
     'winner' : IDL.Opt(TeamId),
     'teamAId' : TeamId,
     'teamBId' : TeamId,
@@ -253,7 +262,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'addTeam' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [TeamId], []),
-    'createMatch' : IDL.Func([TeamId, TeamId, MatchRules], [MatchId], []),
+    'createMatch' : IDL.Func([TeamId, TeamId, MatchRules, Toss], [MatchId], []),
     'getAllTeams' : IDL.Func([], [IDL.Vec(Team)], ['query']),
     'getDeliveriesByInnings' : IDL.Func(
         [MatchId, InningsId],

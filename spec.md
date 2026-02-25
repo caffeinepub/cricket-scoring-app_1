@@ -1,14 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Diagnose and fix the broken scoring functionality in the LiveScoring page so that all delivery types are recorded correctly.
+**Goal:** Auto-end innings when the configured number of overs is completed, and fix the total score display in the Cricket Scorer app.
 
 **Planned changes:**
-- Fix delivery recording in `LiveScoring.tsx` so that normal runs (0–6), wides, no-balls, byes, leg-byes, and wickets all update the score, ball count, and over count correctly.
-- Ensure wides and no-balls add the correct run penalty without advancing the legal ball count.
-- Ensure wicket recording decrements the wicket count and triggers the WicketModal for batsman selection.
-- Ensure the EndOfOverModal appears exactly once after 6 legal deliveries without reintroducing the infinite bowler-selection loop from Version 20.
-- Ensure score updates are immediately reflected in ScoreDisplay, BatsmanStatsPanel, and BowlerStatsPanel.
-- Ensure match state is persisted to localStorage and the backend after each delivery.
+- After each completed over, check if overs bowled equals the match's configured total overs; if so, automatically trigger end-of-innings logic.
+- If the first innings ends automatically, show the `EndOfInningsModal` so the user can select openers and bowler for the second innings.
+- If the second innings ends automatically, mark the match as complete and navigate to the scorecard/result screen.
+- Fix the total score calculation in `ScoreDisplay` (and any other UI showing the innings total) to correctly sum all runs (including extras) from the deliveries array, updating in real time after each delivery.
 
-**User-visible outcome:** Users can record all delivery types on the scoring pad and see scores, ball counts, and over counts update correctly without errors or modal loops.
+**User-visible outcome:** The innings transitions automatically when all overs are bowled — moving to the second innings or ending the match without manual intervention — and the total score always shows the correct cumulative runs during live scoring.

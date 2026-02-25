@@ -1,24 +1,41 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T17:42:32.974Z",
+  "generatedAt": "2026-02-25T18:46:51.184Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 1,
-    "implemented": 1,
+    "total": 2,
+    "implemented": 2,
     "items": [
       {
-        "id": "REQ-2",
-        "summary": "Diagnose and fix the scoring regression in LiveScoring.tsx where recording deliveries (runs, extras, wickets) has stopped functioning correctly. Ensure that every valid delivery type — normal runs (0–6), wides, no-balls, byes, leg-byes, and wickets — is correctly recorded, updates the score display, advances the over/ball count, and persists both to localStorage and the backend. The fix must not reintroduce the EndOfOverModal infinite bowler-selection loop resolved in Version 20.",
+        "id": "REQ-1",
+        "summary": "When the number of overs bowled in the current innings equals the match's configured total overs, automatically trigger end-of-innings logic: if the first innings just ended, transition to the second innings setup (show EndOfInningsModal to pick openers and bowler for the second innings); if the second innings just ended, mark the match as complete and navigate to the scorecard/result screen.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/pages/LiveScoring.tsx"
+          "frontend/src/pages/LiveScoring.tsx",
+          "frontend/src/hooks/useMatchState.ts"
         ],
         "matchedFiles": [
-          "frontend/src/pages/LiveScoring.tsx"
+          "frontend/src/pages/LiveScoring.tsx",
+          "frontend/src/hooks/useMatchState.ts"
+        ]
+      },
+      {
+        "id": "REQ-2",
+        "summary": "Fix the total score field so it is correctly calculated and displayed in the ScoreDisplay component and any other UI locations showing the innings/match total. The total runs for an innings must aggregate all delivery runs (including extras) from the deliveries array and display the correct cumulative score in real time during live scoring.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/ScoreDisplay.tsx",
+          "frontend/src/lib/matchUtils.ts",
+          "frontend/src/pages/Scorecard.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/ScoreDisplay.tsx",
+          "frontend/src/lib/matchUtils.ts",
+          "frontend/src/pages/Scorecard.tsx"
         ]
       }
     ]
@@ -28,7 +45,11 @@
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
+    "frontend/src/components/ScoreDisplay.tsx",
+    "frontend/src/hooks/useMatchState.ts",
+    "frontend/src/lib/matchUtils.ts",
     "frontend/src/pages/LiveScoring.tsx",
+    "frontend/src/pages/Scorecard.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

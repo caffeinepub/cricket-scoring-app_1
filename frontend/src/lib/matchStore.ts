@@ -1,183 +1,198 @@
+// localStorage utilities for match state persistence
+
+const STORED_MATCHES_KEY = 'cricket_stored_matches';
+const MATCH_META_KEY = 'cricket_match_meta';
+const MATCH_STATE_PREFIX = 'cricket_match_state';
+
 export interface StoredMatch {
   matchId: string;
-  isFinished: boolean;
+  teamAId?: string;
+  teamBId?: string;
+  teamAName: string;
+  teamBName: string;
+  oversLimit?: number;
   createdAt: number;
-  teamAId?: bigint;
-  teamBId?: bigint;
-  teamAName?: string;
-  teamBName?: string;
+  isFinished: boolean;
   result?: string;
-  winnerTeamId?: bigint | null;
 }
 
 export interface MatchMeta {
-  matchId: string;
-  teamAId: bigint;
-  teamBId: bigint;
-  strikerId: bigint | null;
-  nonStrikerId: bigint | null;
-  bowlerId: bigint | null;
-  teamAPlayingEleven: bigint[];
-  teamBPlayingEleven: bigint[];
+  currentMatchId: string | null;
 }
 
-export interface LocalMatchState {
-  strikerId?: bigint | null;
-  nonStrikerId?: bigint | null;
-  bowlerId?: bigint | null;
+// ── BigInt-safe JSON helpers ──────────────────────────────────────────────────
+
+function replacer(_: string, value: unknown): unknown {
+  if (typeof value === 'bigint') return { __bigint__: value.toString() };
+  return value;
 }
 
-const MATCHES_KEY = 'cricket_matches';
-const MATCH_META_KEY = 'cricket_match_meta';
-const LOCAL_STATE_KEY = 'cricket_local_state';
+function reviver(_: string, value: unknown): unknown {
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    '__bigint__' in (value as Record<string, unknown>)
+  ) {
+    return BigInt((value as Record<string, string>).__bigint__);
+  }
+  return value;
+}
 
-// ---- Stored Matches ----
+function safeStringify(data: unknown): string {
+  return JSON.stringify(data, replacer);
+}
+
+function safeParse<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw, reviver) as T;
+  } catch {
+    return null;
+  }
+}
+
+// ── Stored Matches ────────────────────────────────────────────────────────────
 
 export function getStoredMatches(): StoredMatch[] {
   try {
-    const raw = localStorage.getItem(MATCHES_KEY);
+    const raw = localStorage.getItem(STORED_MATCHES_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return parsed.map((m: StoredMatch & { teamAId?: string; teamBId?: string; winnerTeamId?: string | null }) => ({
-      ...m,
-      teamAId: m.teamAId != null ? BigInt(m.teamAId) : undefined,
-      teamBId: m.teamBId != null ? BigInt(m.teamBId) : undefined,
-      winnerTeamId: m.winnerTeamId != null ? BigInt(m.winnerTeamId) : null,
-    }));
+    return safeParse<StoredMatch[]>(raw) ?? [];
   } catch {
     return [];
   }
 }
 
-export function storeMatch(match: StoredMatch): void {
-  const matches = getStoredMatches();
-  const idx = matches.findIndex(m => m.matchId === match.matchId);
-  const serializable = {
-    ...match,
-    teamAId: match.teamAId?.toString(),
-    teamBId: match.teamBId?.toString(),
-    winnerTeamId: match.winnerTeamId != null ? match.winnerTeamId.toString() : null,
-  };
-  if (idx >= 0) {
-    const arr = getStoredMatchesRaw();
-    arr[idx] = serializable;
-    localStorage.setItem(MATCHES_KEY, JSON.stringify(arr));
-  } else {
-    const arr = getStoredMatchesRaw();
-    arr.push(serializable);
-    localStorage.setItem(MATCHES_KEY, JSON.stringify(arr));
-  }
-}
-
-function getStoredMatchesRaw(): Record<string, unknown>[] {
+export function saveStoredMatch(match: StoredMatch): void {
   try {
-    const raw = localStorage.getItem(MATCHES_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-export function updateStoredMatch(matchId: string, updates: Partial<StoredMatch>): void {
-  const arr = getStoredMatchesRaw();
-  const idx = arr.findIndex((m: Record<string, unknown>) => m.matchId === matchId);
-  if (idx >= 0) {
-    const serializable: Record<string, unknown> = { ...updates };
-    if (updates.teamAId != null) serializable.teamAId = updates.teamAId.toString();
-    if (updates.teamBId != null) serializable.teamBId = updates.teamBId.toString();
-    if ('winnerTeamId' in updates) {
-      serializable.winnerTeamId = updates.winnerTeamId != null ? updates.winnerTeamId.toString() : null;
+    const matches = getStoredMatches();
+    const idx = matches.findIndex((m) => m.matchId === match.matchId);
+    if (idx >= 0) {
+      matches[idx] = match;
+    } else {
+      matches.push(match);
     }
-    arr[idx] = { ...arr[idx], ...serializable };
-    localStorage.setItem(MATCHES_KEY, JSON.stringify(arr));
-  }
-}
-
-// ---- Match Meta ----
-
-export function saveMatchMeta(matchId: string, meta: MatchMeta): void {
-  const serializable = {
-    ...meta,
-    teamAId: meta.teamAId.toString(),
-    teamBId: meta.teamBId.toString(),
-    strikerId: meta.strikerId?.toString() ?? null,
-    nonStrikerId: meta.nonStrikerId?.toString() ?? null,
-    bowlerId: meta.bowlerId?.toString() ?? null,
-    teamAPlayingEleven: meta.teamAPlayingEleven.map(id => id.toString()),
-    teamBPlayingEleven: meta.teamBPlayingEleven.map(id => id.toString()),
-  };
-  localStorage.setItem(`${MATCH_META_KEY}_${matchId}`, JSON.stringify(serializable));
-}
-
-export function getMatchMeta(matchId: string): MatchMeta | null {
-  try {
-    const raw = localStorage.getItem(`${MATCH_META_KEY}_${matchId}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return {
-      ...parsed,
-      teamAId: BigInt(parsed.teamAId),
-      teamBId: BigInt(parsed.teamBId),
-      strikerId: parsed.strikerId != null ? BigInt(parsed.strikerId) : null,
-      nonStrikerId: parsed.nonStrikerId != null ? BigInt(parsed.nonStrikerId) : null,
-      bowlerId: parsed.bowlerId != null ? BigInt(parsed.bowlerId) : null,
-      teamAPlayingEleven: (parsed.teamAPlayingEleven ?? []).map((id: string) => BigInt(id)),
-      teamBPlayingEleven: (parsed.teamBPlayingEleven ?? []).map((id: string) => BigInt(id)),
-    };
+    localStorage.setItem(STORED_MATCHES_KEY, safeStringify(matches));
   } catch {
-    return null;
+    // ignore
   }
 }
 
-// ---- Local Match State (live scoring state) ----
+/** Alias for backward compatibility */
+export const storeMatch = saveStoredMatch;
 
-export function saveLocalMatchState(matchId: string, state: LocalMatchState): void {
+export function updateStoredMatch(
+  matchId: string,
+  updates: Partial<StoredMatch>
+): void {
   try {
-    const existing = getLocalMatchState(matchId) ?? {};
-    const merged = { ...existing, ...state };
-    const serializable = {
-      strikerId: merged.strikerId?.toString() ?? null,
-      nonStrikerId: merged.nonStrikerId?.toString() ?? null,
-      bowlerId: merged.bowlerId?.toString() ?? null,
-    };
-    localStorage.setItem(`${LOCAL_STATE_KEY}_${matchId}`, JSON.stringify(serializable));
-  } catch {}
-}
-
-export function getLocalMatchState(matchId: string): LocalMatchState | null {
-  try {
-    const raw = localStorage.getItem(`${LOCAL_STATE_KEY}_${matchId}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return {
-      strikerId: parsed.strikerId != null ? BigInt(parsed.strikerId) : null,
-      nonStrikerId: parsed.nonStrikerId != null ? BigInt(parsed.nonStrikerId) : null,
-      bowlerId: parsed.bowlerId != null ? BigInt(parsed.bowlerId) : null,
-    };
+    const matches = getStoredMatches();
+    const idx = matches.findIndex((m) => m.matchId === matchId);
+    if (idx >= 0) {
+      matches[idx] = { ...matches[idx], ...updates };
+      localStorage.setItem(STORED_MATCHES_KEY, safeStringify(matches));
+    }
   } catch {
-    return null;
+    // ignore
   }
 }
 
-// ---- Clear utilities ----
-
-export function clearAllMatches(): void {
-  localStorage.removeItem(MATCHES_KEY);
+export function removeStoredMatch(matchId: string): void {
+  try {
+    const matches = getStoredMatches().filter((m) => m.matchId !== matchId);
+    localStorage.setItem(STORED_MATCHES_KEY, safeStringify(matches));
+  } catch {
+    // ignore
+  }
 }
 
-export function clearAllMeta(): void {
-  // Clear all match meta keys
-  const keys = Object.keys(localStorage).filter(k => k.startsWith(MATCH_META_KEY));
-  keys.forEach(k => localStorage.removeItem(k));
+// ── Match Meta (current match pointer) ───────────────────────────────────────
+
+export function getMatchMeta(): MatchMeta {
+  try {
+    const raw = localStorage.getItem(MATCH_META_KEY);
+    if (!raw) return { currentMatchId: null };
+    return safeParse<MatchMeta>(raw) ?? { currentMatchId: null };
+  } catch {
+    return { currentMatchId: null };
+  }
 }
 
-export function clearAllLocalState(): void {
-  const keys = Object.keys(localStorage).filter(k => k.startsWith(LOCAL_STATE_KEY));
-  keys.forEach(k => localStorage.removeItem(k));
+export function saveMatchMeta(meta: MatchMeta): void {
+  try {
+    localStorage.setItem(MATCH_META_KEY, safeStringify(meta));
+  } catch {
+    // ignore
+  }
 }
 
+export function clearMatchMeta(): void {
+  try {
+    localStorage.removeItem(MATCH_META_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+// ── Match State Validation ────────────────────────────────────────────────────
+
+export interface RawMatchState {
+  matchId?: string;
+  strikerId?: unknown;
+  nonStrikerId?: unknown;
+  bowlerId?: unknown;
+  currentInnings?: number;
+  [key: string]: unknown;
+}
+
+/**
+ * Returns true if the stored match state for the given matchId has the minimum
+ * required fields: strikerId, nonStrikerId, bowlerId, and currentInnings.
+ */
+export function isStoredMatchStateValid(matchId: string): boolean {
+  try {
+    const raw = localStorage.getItem(`${MATCH_STATE_PREFIX}_${matchId}`);
+    if (!raw) return false;
+    const state = safeParse<RawMatchState>(raw);
+    if (!state) return false;
+    return (
+      state.strikerId !== null &&
+      state.strikerId !== undefined &&
+      state.nonStrikerId !== null &&
+      state.nonStrikerId !== undefined &&
+      state.bowlerId !== null &&
+      state.bowlerId !== undefined &&
+      typeof state.currentInnings === 'number'
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clears the match state for the given matchId from localStorage.
+ */
+export function clearStoredMatchState(matchId: string): void {
+  try {
+    localStorage.removeItem(`${MATCH_STATE_PREFIX}_${matchId}`);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Clears ALL cricket_match_state_* keys from localStorage.
+ */
 export function clearAllMatchState(): void {
-  const keys = Object.keys(localStorage).filter(k => k.startsWith('cricket_match_state'));
-  keys.forEach(k => localStorage.removeItem(k));
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(MATCH_STATE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // ignore
+  }
 }

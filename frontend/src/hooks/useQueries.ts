@@ -1,58 +1,103 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useActor } from "@/hooks/useActor";
-import type {
-  Team,
-  TeamId,
-  PlayerId,
-  Match,
-  MatchId,
-  InningsId,
-  MatchRules,
-  Delivery,
-  TournamentRules,
-} from "@/backend";
-import {
-  clearAllMatches,
-  clearAllMeta,
-  clearAllLocalState,
-  clearAllMatchState,
-} from "@/lib/matchStore";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useActor } from './useActor';
+import type { Team, Match, Delivery, MatchRules, TournamentRules, MatchId, InningsId, Toss } from '@/backend';
 
-// ─── Teams ────────────────────────────────────────────────────────────────────
+// ── Teams ─────────────────────────────────────────────────────────────────────
 
 export function useGetAllTeams() {
   const { actor, isFetching } = useActor();
+
   return useQuery<Team[]>({
-    queryKey: ["teams"],
+    queryKey: ['teams'],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllTeams();
     },
     enabled: !!actor && !isFetching,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 }
 
-// Alias for backward compat
+/** Alias kept for backward compatibility */
 export const useTeams = useGetAllTeams;
 
-export function useGetTeam(teamId: TeamId | null) {
+export function useGetTeam(teamId: bigint | null) {
   const { actor, isFetching } = useActor();
+
   return useQuery<Team | null>({
-    queryKey: ["team", teamId?.toString()],
+    queryKey: ['team', teamId?.toString()],
     queryFn: async () => {
       if (!actor || teamId === null) return null;
       return actor.getTeam(teamId);
     },
     enabled: !!actor && !isFetching && teamId !== null,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 }
 
-// Alias for backward compat
-export const useTeam = useGetTeam;
+// ── Matches ───────────────────────────────────────────────────────────────────
+
+export function useGetMatch(matchId: bigint | null) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Match | null>({
+    queryKey: ['match', matchId?.toString()],
+    queryFn: async () => {
+      if (!actor || matchId === null) return null;
+      return actor.getMatch(matchId);
+    },
+    enabled: !!actor && !isFetching && matchId !== null,
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    staleTime: 5000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useGetDeliveriesByInnings(matchId: bigint | null, inningsId: bigint) {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<Delivery[]>({
+    queryKey: ['deliveries', matchId?.toString(), inningsId.toString()],
+    queryFn: async () => {
+      if (!actor || matchId === null) return [];
+      return actor.getDeliveriesByInnings(matchId, inningsId);
+    },
+    enabled: !!actor && !isFetching && matchId !== null,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    staleTime: 2000,
+  });
+}
+
+// ── Tournament Rules ──────────────────────────────────────────────────────────
+
+export function useGetTournamentRules() {
+  const { actor, isFetching } = useActor();
+
+  return useQuery<TournamentRules>({
+    queryKey: ['tournamentRules'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not ready');
+      return actor.getTournamentRules();
+    },
+    enabled: !!actor && !isFetching,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+  });
+}
+
+/** Alias kept for backward compatibility */
+export const useTournamentRules = useGetTournamentRules;
+
+// ── Mutations ─────────────────────────────────────────────────────────────────
 
 export function useAddTeam() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       name,
@@ -63,11 +108,11 @@ export function useAddTeam() {
       color: string;
       logo: string;
     }) => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.addTeam(name, color, logo);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
     },
   });
 }
@@ -75,6 +120,7 @@ export function useAddTeam() {
 export function useAddPlayer() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       teamId,
@@ -82,19 +128,17 @@ export function useAddPlayer() {
       battingOrder,
       isBowler,
     }: {
-      teamId: TeamId;
+      teamId: bigint;
       name: string;
       battingOrder: bigint;
       isBowler: boolean;
     }) => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.addPlayer(teamId, name, battingOrder, isBowler);
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-      queryClient.invalidateQueries({
-        queryKey: ["team", variables.teamId.toString()],
-      });
+    onSuccess: (_, { teamId }) => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team', teamId.toString()] });
     },
   });
 }
@@ -102,88 +146,54 @@ export function useAddPlayer() {
 export function useSelectSquad() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       teamId,
       squad,
     }: {
-      teamId: TeamId;
-      squad: PlayerId[];
+      teamId: bigint;
+      squad: bigint[];
     }) => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.selectSquad(teamId, squad);
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-      queryClient.invalidateQueries({
-        queryKey: ["team", variables.teamId.toString()],
-      });
+    onSuccess: (_, { teamId }) => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] });
+      queryClient.invalidateQueries({ queryKey: ['team', teamId.toString()] });
     },
   });
 }
-
-// ─── Matches ──────────────────────────────────────────────────────────────────
-
-export function useGetMatch(matchId: MatchId | null) {
-  const { actor, isFetching } = useActor();
-  return useQuery<Match | null>({
-    queryKey: ["match", matchId?.toString()],
-    queryFn: async () => {
-      if (!actor || matchId === null) return null;
-      return actor.getMatch(matchId);
-    },
-    enabled: !!actor && !isFetching && matchId !== null,
-    staleTime: 0,
-  });
-}
-
-// Alias for backward compat
-export const useMatch = useGetMatch;
 
 export function useCreateMatch() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       teamAId,
       teamBId,
       rules,
+      toss,
     }: {
-      teamAId: TeamId;
-      teamBId: TeamId;
+      teamAId: bigint;
+      teamBId: bigint;
       rules: MatchRules;
+      toss: Toss;
     }) => {
-      if (!actor) throw new Error("Actor not initialized");
-      return actor.createMatch(teamAId, teamBId, rules);
+      if (!actor) throw new Error('Actor not ready');
+      return actor.createMatch(teamAId, teamBId, rules, toss);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["matches"] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
-  });
-}
-
-// ─── Deliveries ───────────────────────────────────────────────────────────────
-
-export function useGetDeliveriesByInnings(
-  matchId: MatchId | null,
-  inningsId: InningsId | null
-) {
-  const { actor, isFetching } = useActor();
-  return useQuery<Delivery[]>({
-    queryKey: ["deliveries", matchId?.toString(), inningsId?.toString()],
-    queryFn: async () => {
-      if (!actor || matchId === null || inningsId === null) return [];
-      return actor.getDeliveriesByInnings(matchId, inningsId);
-    },
-    enabled: !!actor && !isFetching && matchId !== null && inningsId !== null,
-    staleTime: 0,
-    refetchOnMount: true,
   });
 }
 
 export function useRecordDelivery() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({
       matchId,
@@ -194,98 +204,43 @@ export function useRecordDelivery() {
       inningsId: InningsId;
       delivery: Delivery;
     }) => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.recordDelivery(matchId, inningsId, delivery);
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate the specific innings deliveries
+    onSuccess: (_, { matchId, inningsId }) => {
       queryClient.invalidateQueries({
-        queryKey: [
-          "deliveries",
-          variables.matchId.toString(),
-          variables.inningsId.toString(),
-        ],
+        queryKey: ['deliveries', matchId.toString(), inningsId.toString()],
       });
-      // Invalidate all deliveries for this match
-      queryClient.invalidateQueries({
-        queryKey: ["deliveries", variables.matchId.toString()],
-      });
-      // Invalidate the match itself
-      queryClient.invalidateQueries({
-        queryKey: ["match", variables.matchId.toString()],
-      });
+      queryClient.invalidateQueries({ queryKey: ['match', matchId.toString()] });
     },
   });
 }
-
-export function useUpdateMatchRules() {
-  const { actor } = useActor();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      matchId,
-      rules,
-    }: {
-      matchId: MatchId;
-      rules: MatchRules;
-    }) => {
-      if (!actor) throw new Error("Actor not initialized");
-      return actor.updateMatchRules(matchId, rules);
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["match", variables.matchId.toString()],
-      });
-    },
-  });
-}
-
-// ─── Tournament Rules ─────────────────────────────────────────────────────────
-
-export function useGetTournamentRules() {
-  const { actor, isFetching } = useActor();
-  return useQuery<TournamentRules | null>({
-    queryKey: ["tournamentRules"],
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getTournamentRules();
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-// Alias for backward compat
-export const useTournamentRules = useGetTournamentRules;
 
 export function useUpdateTournamentRules() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (rules: TournamentRules) => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.updateTournamentRules(rules);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tournamentRules"] });
+      queryClient.invalidateQueries({ queryKey: ['tournamentRules'] });
     },
   });
 }
 
-// ─── Reset All Data ───────────────────────────────────────────────────────────
-
 export function useResetAllData() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async () => {
-      if (!actor) throw new Error("Actor not initialized");
+      if (!actor) throw new Error('Actor not ready');
       return actor.resetAllData();
     },
     onSuccess: () => {
-      clearAllMatches();
-      clearAllMeta();
-      clearAllLocalState();
-      clearAllMatchState();
       queryClient.invalidateQueries();
     },
   });

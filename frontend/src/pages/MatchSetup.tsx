@@ -6,6 +6,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle2,
+  Trophy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,19 +22,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTeams, useCreateMatch, useSelectSquad } from "@/hooks/useQueries";
+import { useGetAllTeams, useCreateMatch, useSelectSquad } from "@/hooks/useQueries";
 import PlayingElevenSelector from "@/components/PlayingElevenSelector";
 import QueryErrorState from "@/components/QueryErrorState";
-import { saveMatchMeta, storeMatch } from "@/lib/matchStore";
+import { saveMatchMeta, saveStoredMatch } from "@/lib/matchStore";
 import type { Team } from "@/backend";
+import { TossChoice } from "@/backend";
 
-type Step = "teams" | "playing11" | "rules" | "confirm";
+type Step = "teams" | "playing11" | "toss" | "rules" | "confirm";
 
-const STEPS: Step[] = ["teams", "playing11", "rules", "confirm"];
+const STEPS: Step[] = ["teams", "playing11", "toss", "rules", "confirm"];
 
 const STEP_LABELS: Record<Step, string> = {
   teams: "Select Teams",
   playing11: "Playing 11",
+  toss: "Toss",
   rules: "Match Rules",
   confirm: "Confirm",
 };
@@ -46,13 +49,17 @@ export default function MatchSetup() {
     isError: teamsError,
     error: teamsErrorObj,
     refetch: refetchTeams,
-  } = useTeams();
+  } = useGetAllTeams();
 
   const [currentStep, setCurrentStep] = useState<Step>("teams");
   const [teamAId, setTeamAId] = useState<string>("");
   const [teamBId, setTeamBId] = useState<string>("");
   const [squadA, setSquadA] = useState<bigint[]>([]);
   const [squadB, setSquadB] = useState<bigint[]>([]);
+  // Toss state
+  const [tossWinnerId, setTossWinnerId] = useState<string>("");
+  const [tossChoice, setTossChoice] = useState<TossChoice | "">("");
+  // Rules state
   const [overs, setOvers] = useState(20);
   const [maxOversPerBowler, setMaxOversPerBowler] = useState(4);
   const [freeHitEnabled, setFreeHitEnabled] = useState(true);
@@ -68,6 +75,7 @@ export default function MatchSetup() {
 
   const canProceedFromTeams = teamAId && teamBId && teamAId !== teamBId;
   const canProceedFromPlaying11 = squadA.length === 11 && squadB.length === 11;
+  const canProceedFromToss = tossWinnerId !== "" && tossChoice !== "";
   const canProceedFromRules = overs > 0 && maxOversPerBowler > 0;
 
   const handleNext = () => {
@@ -85,12 +93,18 @@ export default function MatchSetup() {
   };
 
   const handleStartMatch = async () => {
-    if (!teamA || !teamB) return;
+    if (!teamA || !teamB || !tossWinnerId || !tossChoice) return;
 
     try {
       // Save squads to backend
       await selectSquad.mutateAsync({ teamId: teamA.id, squad: squadA });
       await selectSquad.mutateAsync({ teamId: teamB.id, squad: squadB });
+
+      // Build toss object — choice is the TossChoice enum value directly
+      const toss = {
+        winnerTeamId: BigInt(tossWinnerId),
+        choice: tossChoice as TossChoice,
+      };
 
       // Create match
       const matchId = await createMatch.mutateAsync({
@@ -103,34 +117,27 @@ export default function MatchSetup() {
           maxOversPerBowler: BigInt(maxOversPerBowler),
           freeHitEnabled,
         },
+        toss,
       });
 
       const matchIdStr = matchId.toString();
 
-      // Save match metadata locally
-      saveMatchMeta(matchIdStr, {
-        matchId: matchIdStr,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
-        teamAPlayingEleven: squadA,
-        teamBPlayingEleven: squadB,
-        strikerId: squadA[0] ?? null,
-        nonStrikerId: squadA[1] ?? null,
-        bowlerId: squadB[0] ?? null,
-      });
+      // Save current match pointer for live scoring
+      saveMatchMeta({ currentMatchId: matchIdStr });
 
       // Store match in local history
-      storeMatch({
+      saveStoredMatch({
         matchId: matchIdStr,
         teamAName: teamA.name,
         teamBName: teamB.name,
-        teamAId: teamA.id,
-        teamBId: teamB.id,
+        teamAId: teamA.id.toString(),
+        teamBId: teamB.id.toString(),
         createdAt: Date.now(),
         isFinished: false,
+        oversLimit: overs,
       });
 
-      // Save current match ID for live scoring
+      // Save current match ID for live scoring (legacy key)
       localStorage.setItem('currentMatchId', matchIdStr);
 
       navigate({ to: "/match/$matchId", params: { matchId: matchIdStr } });
@@ -163,6 +170,16 @@ export default function MatchSetup() {
       </div>
     );
   }
+
+  // Derive toss winner/loser team for display
+  const tossWinnerTeam = teamList.find((t) => t.id.toString() === tossWinnerId) ?? null;
+  const tossLoserTeam = tossWinnerId
+    ? teamList.find(
+        (t) =>
+          t.id.toString() !== tossWinnerId &&
+          (t.id.toString() === teamAId || t.id.toString() === teamBId)
+      ) ?? null
+    : null;
 
   return (
     <div className="space-y-4">
@@ -208,6 +225,20 @@ export default function MatchSetup() {
         />
       )}
 
+      {currentStep === "toss" && teamA && teamB && (
+        <TossStep
+          teamA={teamA}
+          teamB={teamB}
+          tossWinnerId={tossWinnerId}
+          tossChoice={tossChoice}
+          onTossWinnerChange={(id) => {
+            setTossWinnerId(id);
+            setTossChoice(""); // reset choice when winner changes
+          }}
+          onTossChoiceChange={setTossChoice}
+        />
+      )}
+
       {currentStep === "rules" && (
         <RulesStep
           overs={overs}
@@ -228,6 +259,9 @@ export default function MatchSetup() {
           overs={overs}
           maxOversPerBowler={maxOversPerBowler}
           freeHitEnabled={freeHitEnabled}
+          tossWinnerTeam={tossWinnerTeam}
+          tossLoserTeam={tossLoserTeam}
+          tossChoice={tossChoice}
         />
       )}
 
@@ -259,6 +293,7 @@ export default function MatchSetup() {
             disabled={
               (currentStep === "teams" && !canProceedFromTeams) ||
               (currentStep === "playing11" && !canProceedFromPlaying11) ||
+              (currentStep === "toss" && !canProceedFromToss) ||
               (currentStep === "rules" && !canProceedFromRules)
             }
           >
@@ -318,7 +353,7 @@ function TeamSelectionStep({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label>Team A (Batting First)</Label>
+          <Label>Team A</Label>
           <Select value={teamAId} onValueChange={onTeamAChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select Team A" />
@@ -335,7 +370,7 @@ function TeamSelectionStep({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Team B (Bowling First)</Label>
+          <Label>Team B</Label>
           <Select value={teamBId} onValueChange={onTeamBChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select Team B" />
@@ -395,6 +430,121 @@ function Playing11Step({
             selected={squadB}
             onChange={onSquadBChange}
           />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function TossStep({
+  teamA,
+  teamB,
+  tossWinnerId,
+  tossChoice,
+  onTossWinnerChange,
+  onTossChoiceChange,
+}: {
+  teamA: Team;
+  teamB: Team;
+  tossWinnerId: string;
+  tossChoice: TossChoice | "";
+  onTossWinnerChange: (id: string) => void;
+  onTossChoiceChange: (choice: TossChoice) => void;
+}) {
+  const teams = [teamA, teamB];
+  const winnerTeam = teams.find((t) => t.id.toString() === tossWinnerId) ?? null;
+
+  // Derive what the other team will do
+  const loserChoice =
+    tossChoice === TossChoice.Bat
+      ? "Bowl"
+      : tossChoice === TossChoice.Bowl
+      ? "Bat"
+      : null;
+  const loserTeam = winnerTeam
+    ? teams.find((t) => t.id !== winnerTeam.id) ?? null
+    : null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Trophy size={16} className="text-yellow-500" />
+            Toss Result
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Toss winner selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Who won the toss?</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {teams.map((team) => (
+                <button
+                  key={team.id.toString()}
+                  type="button"
+                  onClick={() => onTossWinnerChange(team.id.toString())}
+                  className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 p-4 text-center transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    tossWinnerId === team.id.toString()
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted/50"
+                  }`}
+                >
+                  {tossWinnerId === team.id.toString() && (
+                    <Trophy size={14} className="absolute top-2 right-2 text-yellow-500" />
+                  )}
+                  <span className="text-2xl">🏏</span>
+                  <span className="text-sm font-semibold leading-tight">{team.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Toss choice — only shown after winner is selected */}
+          {tossWinnerId && winnerTeam && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                {winnerTeam.name} elected to…
+              </Label>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { value: TossChoice.Bat, label: "Bat", emoji: "🏏", desc: "Open the innings" },
+                  { value: TossChoice.Bowl, label: "Bowl", emoji: "⚾", desc: "Take the field" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onTossChoiceChange(option.value)}
+                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 p-4 text-center transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      tossChoice === option.value
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border bg-card text-foreground hover:border-primary/50 hover:bg-muted/50"
+                    }`}
+                  >
+                    <span className="text-2xl">{option.emoji}</span>
+                    <span className="text-sm font-bold">{option.label}</span>
+                    <span className="text-xs text-muted-foreground">{option.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Confirmation summary */}
+          {tossWinnerId && tossChoice && winnerTeam && loserTeam && loserChoice && (
+            <div className="rounded-lg bg-muted/60 border border-border px-4 py-3 space-y-1">
+              <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <CheckCircle2 size={15} className="text-green-500 shrink-0" />
+                {winnerTeam.name} won the toss &amp; elected to{" "}
+                <span className="text-primary">
+                  {tossChoice === TossChoice.Bat ? "bat" : "bowl"}
+                </span>
+              </p>
+              <p className="text-xs text-muted-foreground pl-5">
+                {loserTeam.name} will {loserChoice.toLowerCase()} first
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -467,6 +617,9 @@ function ConfirmStep({
   overs,
   maxOversPerBowler,
   freeHitEnabled,
+  tossWinnerTeam,
+  tossLoserTeam,
+  tossChoice,
 }: {
   teamA: Team;
   teamB: Team;
@@ -475,9 +628,21 @@ function ConfirmStep({
   overs: number;
   maxOversPerBowler: number;
   freeHitEnabled: boolean;
+  tossWinnerTeam: Team | null;
+  tossLoserTeam: Team | null;
+  tossChoice: TossChoice | "";
 }) {
   const getPlayerName = (team: Team, id: bigint) =>
     team.players.find((p) => p.id === id)?.name ?? id.toString();
+
+  const battingFirst =
+    tossChoice === TossChoice.Bat
+      ? tossWinnerTeam
+      : tossLoserTeam;
+  const bowlingFirst =
+    tossChoice === TossChoice.Bat
+      ? tossLoserTeam
+      : tossWinnerTeam;
 
   return (
     <div className="space-y-3">
@@ -495,6 +660,27 @@ function ConfirmStep({
               {teamA.name} vs {teamB.name}
             </span>
           </div>
+          {tossWinnerTeam && tossChoice && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Toss</span>
+              <span className="text-sm font-medium">
+                {tossWinnerTeam.name} won, elected to{" "}
+                {tossChoice === TossChoice.Bat ? "bat" : "bowl"}
+              </span>
+            </div>
+          )}
+          {battingFirst && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Batting 1st</span>
+              <Badge variant="outline">{battingFirst.name}</Badge>
+            </div>
+          )}
+          {bowlingFirst && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Bowling 1st</span>
+              <Badge variant="secondary">{bowlingFirst.name}</Badge>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">Overs</span>
             <Badge variant="outline">{overs} overs</Badge>

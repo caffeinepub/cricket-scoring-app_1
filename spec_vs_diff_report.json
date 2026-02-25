@@ -1,102 +1,18 @@
 {
   "kind": "spec_vs_diff_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T17:42:32.972Z",
-  "summary": "The diff modifies LiveScoring.tsx and related files primarily to fix TypeScript prop errors (ScoreDisplay, BatsmanStatsPanel, BowlerStatsPanel prop names) and preserves a stale closure fix using functional state updates and refs. The changes are narrowly focused on prop correctness and display. However, several core REQ-2 acceptance criteria — particularly around delivery recording logic (wides/no-balls not advancing ball count, wicket modal triggering, over advancement, localStorage persistence after each delivery) — are not directly evidenced in the truncated diff.",
-  "missing_requirements": [
-    {
-      "id": "REQ-2",
-      "requirement": "Wide and no-ball extras add the correct run penalty and do not advance the legal ball count.",
-      "reason": "The diff summary for LiveScoring.tsx mentions only prop fixes and stale closure fix via refs/functional updates. No evidence of logic changes to wide/no-ball delivery handling that would ensure legal ball count is not advanced.",
-      "evidence": [
-        "frontend/src/pages/LiveScoring.tsx",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "requirement": "Wicket recording decrements the wicket count and triggers the WicketModal for batsman selection.",
-      "reason": "The diff summary describes prop corrections but does not mention any fix to wicket recording logic or WicketModal trigger flow.",
-      "evidence": [
-        "frontend/src/pages/LiveScoring.tsx",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "requirement": "The over count advances correctly after 6 legal deliveries and the EndOfOverModal appears exactly once.",
-      "reason": "No mention in the diff summary of over-advancement logic being repaired; only EndOfOverModal component itself mentions a double-overlay fix, not the trigger logic in LiveScoring.",
-      "evidence": [
-        "frontend/src/pages/LiveScoring.tsx",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "requirement": "Match state is persisted to localStorage after each delivery.",
-      "reason": "No explicit mention in the diff of saveLocalMatchState being called correctly after each delivery in LiveScoring.tsx.",
-      "evidence": [
-        "frontend/src/pages/LiveScoring.tsx",
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "requirement": "No console errors are thrown during normal scoring flow.",
-      "reason": "The diff addresses TypeScript prop errors but does not document runtime error resolution during the scoring flow.",
-      "evidence": [
-        "frontend/src/pages/LiveScoring.tsx"
-      ]
-    }
-  ],
-  "hallucinated_features": [
-    {
-      "description": "Scorecard.tsx updated with error/refetch handling and QueryErrorState display",
-      "reason": "The build request does not mention any changes to Scorecard.tsx; this is an unrequested modification.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "MatchHistory.tsx updated to use createdAt instead of date field",
-      "reason": "The build request does not request changes to MatchHistory.tsx.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "Rules.tsx updated to use QueryErrorState",
-      "reason": "The build request does not request changes to Rules.tsx.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "cricketRules.ts updated with new getTournamentRules function",
-      "reason": "The build request does not request changes to cricket rules data.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "ConfigureTournamentRulesModal.tsx created or updated with full tournament rules editing form",
-      "reason": "The build request does not request a tournament rules configuration modal.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    },
-    {
-      "description": "PlayingElevenSelector.tsx created as a new reusable component",
-      "reason": "The build request does not request a new PlayingElevenSelector component.",
-      "evidence": [
-        "frontend-file-summaries.txt"
-      ]
-    }
-  ],
-  "confidence": 0.62,
+  "generatedAt": "2026-02-25T18:46:51.181Z",
+  "summary": "The diff implements both REQ-1 (auto-end innings on over completion) and REQ-2 (fix total score display). REQ-1 is addressed via a pendingInningsEnd ref in LiveScoring.tsx that triggers after EndOfOverModal closes, with navigation to scorecard for 2nd innings end and EndOfInningsModal for 1st innings end. REQ-2 is addressed via the computeTotalRunsFromDeliveries utility used in ScoreDisplay, LiveScoring, and Scorecard. Both requirements appear substantially implemented based on the diff evidence.",
+  "missing_requirements": [],
+  "hallucinated_features": [],
+  "confidence": 0.82,
   "changed_files": [
     "frontend-file-summaries.txt",
+    "frontend/src/components/ScoreDisplay.tsx",
+    "frontend/src/hooks/useMatchState.ts",
+    "frontend/src/lib/matchUtils.ts",
     "frontend/src/pages/LiveScoring.tsx",
+    "frontend/src/pages/Scorecard.tsx",
     "project_state.json"
   ]
 }

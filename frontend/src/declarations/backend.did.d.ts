@@ -48,6 +48,7 @@ export interface Match {
   'id' : MatchId,
   'isFinished' : boolean,
   'deliveries' : Array<BallByBallRecord>,
+  'toss' : Toss,
   'winner' : [] | [TeamId],
   'teamAId' : TeamId,
   'teamBId' : TeamId,
@@ -80,6 +81,9 @@ export interface Team {
   'players' : Array<Player>,
 }
 export type TeamId = bigint;
+export interface Toss { 'choice' : TossChoice, 'winnerTeamId' : TeamId }
+export type TossChoice = { 'Bat' : null } |
+  { 'Bowl' : null };
 export interface TournamentRules {
   'teamReadinessPenaltyOvers' : bigint,
   'widesNoBallBowlerChangeThreshold' : bigint,
@@ -117,7 +121,7 @@ export type WicketType = { 'LBW' : null } |
 export interface _SERVICE {
   'addPlayer' : ActorMethod<[TeamId, string, bigint, boolean], PlayerId>,
   'addTeam' : ActorMethod<[string, string, string], TeamId>,
-  'createMatch' : ActorMethod<[TeamId, TeamId, MatchRules], MatchId>,
+  'createMatch' : ActorMethod<[TeamId, TeamId, MatchRules, Toss], MatchId>,
   'getAllTeams' : ActorMethod<[], Array<Team>>,
   'getDeliveriesByInnings' : ActorMethod<[MatchId, InningsId], Array<Delivery>>,
   'getMatch' : ActorMethod<[MatchId], [] | [Match]>,

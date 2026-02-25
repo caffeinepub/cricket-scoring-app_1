@@ -2,10 +2,11 @@ import Array "mo:core/Array";
 import List "mo:core/List";
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
-
 import Nat "mo:core/Nat";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
+
+
 
 actor {
   type TeamId = Nat;
@@ -73,6 +74,16 @@ actor {
     wicket : ?WicketType;
   };
 
+  type TossChoice = {
+    #Bat;
+    #Bowl;
+  };
+
+  type Toss = {
+    winnerTeamId : TeamId;
+    choice : TossChoice;
+  };
+
   type Innings = {
     id : Nat;
     battingTeamId : TeamId;
@@ -94,6 +105,7 @@ actor {
     currentInnings : Nat;
     isFinished : Bool;
     winner : ?TeamId;
+    toss : Toss;
   };
 
   type TournamentRules = {
@@ -242,7 +254,7 @@ actor {
     };
   };
 
-  public shared ({ caller }) func createMatch(teamAId : TeamId, teamBId : TeamId, rules : MatchRules) : async MatchId {
+  public shared ({ caller }) func createMatch(teamAId : TeamId, teamBId : TeamId, rules : MatchRules, toss : Toss) : async MatchId {
     let teamA = switch (teamStore.get(teamAId)) {
       case (null) { Runtime.trap("Team A does not exist") };
       case (?t) { t };
@@ -261,11 +273,16 @@ actor {
 
     let matchId = nextMatchId;
 
+    let (firstInningsBattingTeamId, firstInningsBowlingTeamId) = switch (toss.choice) {
+      case (#Bat) { (toss.winnerTeamId, if (toss.winnerTeamId == teamAId) { teamBId } else { teamAId }) };
+      case (#Bowl) { (if (toss.winnerTeamId == teamAId) { teamBId } else { teamAId }, toss.winnerTeamId) };
+    };
+
     let initialInnings : [Innings] = [
       {
         id = 1;
-        battingTeamId = teamAId;
-        bowlingTeamId = teamBId;
+        battingTeamId = firstInningsBattingTeamId;
+        bowlingTeamId = firstInningsBowlingTeamId;
         totalRuns = 0;
         wicketsLost = 0;
         deliveries = [];
@@ -274,8 +291,8 @@ actor {
       },
       {
         id = 2;
-        battingTeamId = teamBId;
-        bowlingTeamId = teamAId;
+        battingTeamId = firstInningsBowlingTeamId;
+        bowlingTeamId = firstInningsBattingTeamId;
         totalRuns = 0;
         wicketsLost = 0;
         deliveries = [];
@@ -294,6 +311,7 @@ actor {
       currentInnings = 1;
       isFinished = false;
       winner = null;
+      toss;
     };
 
     matchStore.add(matchId, newMatch);

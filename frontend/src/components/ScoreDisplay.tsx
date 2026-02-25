@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import type { Delivery } from '@/backend';
 
 interface ScoreDisplayProps {
   battingTeamName: string;
@@ -12,6 +13,15 @@ interface ScoreDisplayProps {
   target?: number | null;
   runsRequired?: number | null;
   innings1Summary?: string;
+}
+
+/**
+ * Compute total runs from a deliveries array (including extras).
+ * Each delivery's `runs` field already encodes the full run value
+ * (e.g. wide = 1 run, no-ball = 1 run, etc.).
+ */
+export function computeTotalRunsFromDeliveries(deliveries: Delivery[]): number {
+  return deliveries.reduce((sum, d) => sum + Number(d.runs), 0);
 }
 
 export default function ScoreDisplay({

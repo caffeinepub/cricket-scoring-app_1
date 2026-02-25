@@ -1,167 +1,176 @@
-import type { BallByBallRecord, Match, Team, WicketType } from '../backend';
+import { Delivery, Innings } from '@/backend';
 
-export function formatOvers(balls: number): string {
-  const overs = Math.floor(balls / 6);
-  const rem = balls % 6;
-  return `${overs}.${rem}`;
-}
-
-export function formatOversBigInt(deliveries: BallByBallRecord[]): string {
-  const legalBalls = deliveries.filter(d => !d.isWide && !d.isNoBall).length;
-  return formatOvers(legalBalls);
-}
-
-export function calcRunRate(runs: number, balls: number): string {
-  if (balls === 0) return '0.00';
-  const rr = (runs / balls) * 6;
-  return rr.toFixed(2);
-}
-
-export function calcRequiredRunRate(target: number, currentRuns: number, ballsRemaining: number): string {
-  if (ballsRemaining <= 0) return '∞';
-  const needed = target - currentRuns;
-  if (needed <= 0) return '0.00';
-  const rr = (needed / ballsRemaining) * 6;
-  return rr.toFixed(2);
-}
-
-export function getWicketLabel(wicket: WicketType): string {
-  switch (wicket.__kind__) {
-    case 'Bowled': return 'b';
-    case 'Caught': return 'c';
-    case 'LBW': return 'lbw';
-    case 'RunOut': return 'run out';
-    case 'Stumped': return 'st';
-    case 'HitWicket': return 'hit wkt';
-    case 'Other': return wicket.Other || 'out';
-    default: return 'out';
-  }
-}
-
-export function getBallLabel(ball: BallByBallRecord): string {
-  if (ball.wicket) return 'W';
-  if (ball.isWide) return 'Wd';
-  if (ball.isNoBall) return 'Nb';
-  const runs = Number(ball.runs);
-  if (runs === 0) return '•';
-  if (runs === 4) return '4';
-  if (runs === 6) return '6';
-  return String(runs);
-}
-
-export function getBallColor(ball: BallByBallRecord): string {
-  if (ball.wicket) return 'bg-cricket-red text-white';
-  if (ball.isWide || ball.isNoBall) return 'bg-cricket-gold text-white';
-  const runs = Number(ball.runs);
-  if (runs === 0) return 'bg-muted text-muted-foreground';
-  if (runs === 4) return 'bg-blue-500 text-white';
-  if (runs === 6) return 'bg-purple-600 text-white';
-  return 'bg-cricket-green text-white';
+export interface InningsStats {
+  totalRuns: number;
+  wickets: number;
+  overs: number;
+  balls: number;
+  extras: number;
+  runRate: number;
 }
 
 export interface BatsmanStats {
-  playerId: bigint;
-  name: string;
   runs: number;
   balls: number;
   fours: number;
   sixes: number;
-  strikeRate: string;
+  strikeRate: number;
   isOut: boolean;
-  dismissal: string;
 }
 
 export interface BowlerStats {
-  playerId: bigint;
-  name: string;
-  overs: string;
-  maidens: number;
+  overs: number;
+  balls: number;
   runs: number;
   wickets: number;
-  economy: string;
-}
-
-export function calcBatsmanStats(
-  deliveries: BallByBallRecord[],
-  playerId: bigint,
-  playerName: string
-): BatsmanStats {
-  const myBalls = deliveries.filter(d => d.batsmanId === playerId);
-  const legalBalls = myBalls.filter(d => !d.isWide);
-  const runs = legalBalls.reduce((s, d) => s + Number(d.runs), 0);
-  const balls = legalBalls.length;
-  const fours = legalBalls.filter(d => Number(d.runs) === 4).length;
-  const sixes = legalBalls.filter(d => Number(d.runs) === 6).length;
-  const strikeRate = balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0';
-  const wicketBall = myBalls.find(d => d.wicket);
-  const isOut = !!wicketBall;
-  const dismissal = wicketBall?.wicket ? getWicketLabel(wicketBall.wicket) : '';
-  return { playerId, name: playerName, runs, balls, fours, sixes, strikeRate, isOut, dismissal };
-}
-
-export function calcBowlerStats(
-  deliveries: BallByBallRecord[],
-  playerId: bigint,
-  playerName: string
-): BowlerStats {
-  const myBalls = deliveries.filter(d => d.bowlerId === playerId);
-  const legalBalls = myBalls.filter(d => !d.isWide && !d.isNoBall);
-  const runs = myBalls.reduce((s, d) => s + Number(d.runs), 0);
-  const wickets = myBalls.filter(d => d.wicket).length;
-  const totalBalls = legalBalls.length;
-  const overs = formatOvers(totalBalls);
-
-  // Calculate maidens
-  const overMap = new Map<number, BallByBallRecord[]>();
-  for (const d of myBalls) {
-    const ov = Number(d.overNumber);
-    if (!overMap.has(ov)) overMap.set(ov, []);
-    overMap.get(ov)!.push(d);
-  }
-  let maidens = 0;
-  for (const [, balls] of overMap) {
-    const legalInOver = balls.filter(b => !b.isWide && !b.isNoBall);
-    if (legalInOver.length === 6) {
-      const runsInOver = balls.reduce((s, b) => s + Number(b.runs), 0);
-      if (runsInOver === 0 && !balls.some(b => b.wicket)) maidens++;
-    }
-  }
-
-  const economy = totalBalls > 0 ? ((runs / totalBalls) * 6).toFixed(2) : '0.00';
-  return { playerId, name: playerName, overs, maidens, runs, wickets, economy };
-}
-
-export function getInningsDeliveries(match: Match, inningsIndex: number): BallByBallRecord[] {
-  if (!match.deliveries) return [];
-  // Filter by innings - use overNumber ranges based on innings
-  // Since backend stores all deliveries flat, we need to figure out innings from context
-  // The innings array tracks overs per innings
-  return match.deliveries;
-}
-
-export function getMatchStatus(match: Match, teamA: Team | null, teamB: Team | null): string {
-  if (match.isFinished) {
-    if (match.winner !== undefined && match.winner !== null) {
-      const winnerId = match.winner;
-      const winnerName = winnerId === match.teamAId
-        ? (teamA?.name ?? 'Team A')
-        : (teamB?.name ?? 'Team B');
-      return `${winnerName} won`;
-    }
-    return 'Match completed';
-  }
-  return 'In Progress';
-}
-
-export function getTotalExtras(deliveries: BallByBallRecord[]): {
+  economy: number;
   wides: number;
   noBalls: number;
-  byes: number;
-  legByes: number;
-  total: number;
-} {
-  // BallByBallRecord doesn't have isBye/isLegBye, so we approximate
-  const wides = deliveries.filter(d => d.isWide).length;
-  const noBalls = deliveries.filter(d => d.isNoBall).length;
-  return { wides, noBalls, byes: 0, legByes: 0, total: wides + noBalls };
+}
+
+/**
+ * Calculate innings stats from a list of deliveries.
+ * Correctly sums all runs including extras (wides, no-balls, byes, leg-byes).
+ */
+export function calculateInningsStats(deliveries: Delivery[]): InningsStats {
+  if (!deliveries || deliveries.length === 0) {
+    return { totalRuns: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0 };
+  }
+
+  let totalRuns = 0;
+  let wickets = 0;
+  let legalBalls = 0;
+  let extras = 0;
+
+  for (const delivery of deliveries) {
+    // Sum all runs from every delivery (runs already includes extras in the backend model)
+    const runs = typeof delivery.runs === 'bigint' ? Number(delivery.runs) : Number(delivery.runs);
+    totalRuns += runs;
+
+    // Count extras separately for display
+    if (delivery.isWide || delivery.isNoBall || delivery.isBye || delivery.isLegBye) {
+      extras += runs;
+    }
+
+    // Only count legal balls (not wides or no-balls)
+    if (!delivery.isWide && !delivery.isNoBall) {
+      legalBalls++;
+    }
+
+    // Count wickets (but not run-outs on no-balls in some formats — simplified here)
+    if (delivery.wicket) {
+      wickets++;
+    }
+  }
+
+  const overs = Math.floor(legalBalls / 6);
+  const balls = legalBalls % 6;
+  const totalOversDecimal = overs + balls / 6;
+  const runRate = totalOversDecimal > 0 ? totalRuns / totalOversDecimal : 0;
+
+  return { totalRuns, wickets, overs, balls, extras, runRate };
+}
+
+/**
+ * Calculate batsman stats from deliveries for a specific batsman.
+ */
+export function calculateBatsmanStats(deliveries: Delivery[], batsmanId: bigint): BatsmanStats {
+  const batsmanDeliveries = deliveries.filter(d => d.batsmanId === batsmanId);
+
+  let runs = 0;
+  let balls = 0;
+  let fours = 0;
+  let sixes = 0;
+  let isOut = false;
+
+  for (const delivery of batsmanDeliveries) {
+    const deliveryRuns = typeof delivery.runs === 'bigint' ? Number(delivery.runs) : Number(delivery.runs);
+
+    // Only count balls faced (not wides)
+    if (!delivery.isWide) {
+      balls++;
+      // Only count runs scored by batsman (not byes/leg-byes)
+      if (!delivery.isBye && !delivery.isLegBye) {
+        runs += deliveryRuns;
+        if (deliveryRuns === 4) fours++;
+        if (deliveryRuns === 6) sixes++;
+      }
+    }
+
+    if (delivery.wicket) {
+      isOut = true;
+    }
+  }
+
+  const strikeRate = balls > 0 ? (runs / balls) * 100 : 0;
+
+  return { runs, balls, fours, sixes, strikeRate, isOut };
+}
+
+/**
+ * Calculate bowler stats from deliveries for a specific bowler.
+ */
+export function calculateBowlerStats(deliveries: Delivery[], bowlerId: bigint): BowlerStats {
+  const bowlerDeliveries = deliveries.filter(d => d.bowlerId === bowlerId);
+
+  let runs = 0;
+  let wickets = 0;
+  let legalBalls = 0;
+  let wides = 0;
+  let noBalls = 0;
+
+  for (const delivery of bowlerDeliveries) {
+    const deliveryRuns = typeof delivery.runs === 'bigint' ? Number(delivery.runs) : Number(delivery.runs);
+    runs += deliveryRuns;
+
+    if (delivery.isWide) {
+      wides++;
+    } else if (delivery.isNoBall) {
+      noBalls++;
+    } else {
+      legalBalls++;
+    }
+
+    if (delivery.wicket) {
+      wickets++;
+    }
+  }
+
+  const overs = Math.floor(legalBalls / 6);
+  const balls = legalBalls % 6;
+  const totalOversDecimal = overs + balls / 6;
+  const economy = totalOversDecimal > 0 ? runs / totalOversDecimal : 0;
+
+  return { overs, balls, runs, wickets, economy, wides, noBalls };
+}
+
+/**
+ * Format overs display (e.g., "3.2" for 3 overs 2 balls)
+ */
+export function formatOvers(legalBalls: number): string {
+  const overs = Math.floor(legalBalls / 6);
+  const balls = legalBalls % 6;
+  return `${overs}.${balls}`;
+}
+
+/**
+ * Get the current over number (0-indexed) from legal ball count
+ */
+export function getCurrentOverNumber(legalBalls: number): number {
+  return Math.floor(legalBalls / 6);
+}
+
+/**
+ * Check if an innings should end based on overs completed
+ */
+export function isInningsComplete(deliveries: Delivery[], oversLimit: number): boolean {
+  if (oversLimit <= 0) return false;
+  let legalBalls = 0;
+  for (const delivery of deliveries) {
+    if (!delivery.isWide && !delivery.isNoBall) {
+      legalBalls++;
+    }
+  }
+  const completedOvers = Math.floor(legalBalls / 6);
+  return completedOvers >= oversLimit;
 }
