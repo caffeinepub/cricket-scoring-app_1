@@ -2,29 +2,10 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-audit-and-fix-the-tanstack-router-configuration-in-frontend-src-app-tsx-to-ensure-all-registered-routes-home-matchhistory-teams-matchsetup-livescoring-scorecard-rules-render-their-page-components-correctly-when-navigated-to-investigate-and-resolve-any-broken-route-definitions-missing-lazy-imports-incorrect-path-parameters-or-misconfigured-route-trees-that-would-cause-pages-to-appear-blank-or-fail-to-mount",
-      "featureTitle": "Audit and fix the TanStack Router configuration in frontend/src/App.tsx to ensure all registered routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) render their page components correctly when navigated to. Investigate and resolve any broken route definitions, missing lazy imports, incorrect path parameters, or misconfigured route trees that would cause pages to appear blank or fail to mount.",
-      "files": [
-        "frontend/src/App.tsx"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-28"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-audit-all-page-level-components-teams-tsx-matchsetup-tsx-matchhistory-tsx-livescoring-tsx-scorecard-tsx-rules-tsx-for-runtime-errors-that-prevent-rendering-fix-any-issues-including-undefined-null-data-access-before-react-query-results-have-loaded-add-proper-loading-and-error-guards-broken-or-circular-imports-missing-default-exports-and-any-top-level-exceptions-thrown-during-component-initialization-each-page-must-render-a-visible-loading-state-while-data-is-being-fetched-and-must-not-crash-or-display-a-blank-screen",
-      "featureTitle": "Audit all page-level components (Teams.tsx, MatchSetup.tsx, MatchHistory.tsx, LiveScoring.tsx, Scorecard.tsx, Rules.tsx) for runtime errors that prevent rendering. Fix any issues including: undefined/null data access before React Query results have loaded (add proper loading and error guards), broken or circular imports, missing default exports, and any top-level exceptions thrown during component initialization. Each page must render a visible loading state while data is being fetched and must not crash or display a blank screen.",
+      "featureId": "feature-add-a-graceful-error-boundary-in-the-teams-page-and-any-other-page-that-calls-backend-queries-so-that-when-the-backend-canister-returns-a-rejection-error-e-g-ic0508-canister-is-stopped-the-ui-displays-a-user-friendly-error-message-unable-to-connect-to-the-backend-please-try-again-later-instead-of-the-raw-rejection-text-and-offers-a-retry-button-that-re-triggers-the-query",
+      "featureTitle": "Add a graceful error boundary in the Teams page (and any other page that calls backend queries) so that when the backend canister returns a rejection error (e.g., IC0508 'canister is stopped'), the UI displays a user-friendly error message ('Unable to connect to the backend. Please try again later.') instead of the raw rejection text, and offers a retry button that re-triggers the query.",
       "files": [
         "frontend/src/pages/LiveScoring.tsx",
-        "frontend/src/pages/MatchHistory.tsx",
         "frontend/src/pages/MatchSetup.tsx",
         "frontend/src/pages/Rules.tsx",
         "frontend/src/pages/Scorecard.tsx",
@@ -38,44 +19,7 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-29"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-audit-the-useactor-hook-frontend-src-hooks-useactor-ts-and-the-usequeries-hooks-frontend-src-hooks-usequeries-ts-to-ensure-the-backend-actor-is-initialized-correctly-even-when-the-user-is-not-authenticated-any-query-or-mutation-that-attempts-to-call-actor-methods-before-the-actor-is-ready-must-handle-the-uninitialized-state-gracefully-e-g-by-keeping-query-enabled-flags-false-until-the-actor-is-available-rather-than-throwing-errors-that-propagate-and-break-page-rendering",
-      "featureTitle": "Audit the useActor hook (frontend/src/hooks/useActor.ts) and the useQueries hooks (frontend/src/hooks/useQueries.ts) to ensure the backend actor is initialized correctly even when the user is not authenticated. Any query or mutation that attempts to call actor methods before the actor is ready must handle the uninitialized state gracefully (e.g., by keeping query enabled flags false until the actor is available) rather than throwing errors that propagate and break page rendering.",
-      "files": [
-        "frontend/src/hooks/useQueries.ts"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-30"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-audit-the-layout-component-frontend-src-components-layout-tsx-and-the-bottomtabnavigation-component-frontend-src-components-bottomtabnavigation-tsx-to-ensure-the-router-outlet-renders-child-page-content-correctly-verify-the-outlet-component-from-tanstack-router-is-placed-correctly-inside-the-layout-that-no-conditional-logic-inadvertently-hides-the-outlet-or-replaces-it-with-an-empty-fragment-and-that-the-bottom-tab-navigation-links-use-the-correct-href-to-values-matching-the-defined-routes-in-app-tsx",
-      "featureTitle": "Audit the Layout component (frontend/src/components/Layout.tsx) and the BottomTabNavigation component (frontend/src/components/BottomTabNavigation.tsx) to ensure the router outlet renders child page content correctly. Verify the Outlet component from TanStack Router is placed correctly inside the Layout, that no conditional logic inadvertently hides the outlet or replaces it with an empty fragment, and that the bottom tab navigation links use the correct href/to values matching the defined routes in App.tsx.",
-      "files": [
-        "frontend/src/components/BottomTabNavigation.tsx",
-        "frontend/src/components/Layout.tsx"
-      ],
-      "components": [
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-31"
+        "REQ-1"
       ],
       "confidence": "high"
     }

@@ -1,95 +1,56 @@
 {
   "kind": "build_request",
-  "title": "Fix broken page navigation and rendering after Version 11",
+  "title": "Fix canister stopped error causing getAllTeams failure",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-28",
-      "text": "Audit and fix the TanStack Router configuration in frontend/src/App.tsx to ensure all registered routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) render their page components correctly when navigated to. Investigate and resolve any broken route definitions, missing lazy imports, incorrect path parameters, or misconfigured route trees that would cause pages to appear blank or fail to mount.",
+      "id": "REQ-1",
+      "text": "Add a graceful error boundary in the Teams page (and any other page that calls backend queries) so that when the backend canister returns a rejection error (e.g., IC0508 'canister is stopped'), the UI displays a user-friendly error message ('Unable to connect to the backend. Please try again later.') instead of the raw rejection text, and offers a retry button that re-triggers the query.",
       "target": "frontend",
       "source": {
         "messageIds": [
           "msg-4"
         ],
         "quotes": [
-          "not working Pages are not opening"
+          "Failed to load teams: The replica returned a rejection error",
+          "Reject code: 5 Reject text: Canister rde4o-bqaaa-aaaaj-a3oja-cai is stopped and therefore does not have a CallContextManager Error code: IC0508"
         ]
       },
       "acceptanceCriteria": [
-        "Navigating to the Teams tab renders the Teams page without a blank screen or crash",
-        "Navigating to the Match Setup tab renders the MatchSetup page without a blank screen or crash",
-        "Navigating to the History tab renders the MatchHistory page without a blank screen or crash",
-        "Navigating to the Rules tab renders the Rules page without a blank screen or crash",
-        "Navigating to the Home tab renders the default home/match-history page without a blank screen or crash",
-        "All bottom tab navigation links resolve to the correct page components"
+        "When the backend canister is stopped or returns a reject code 5 (IC0508), the Teams page shows a friendly error message instead of the raw rejection text.",
+        "A 'Retry' button is visible in the error state that re-triggers the getAllTeams query.",
+        "No unhandled JavaScript errors are thrown to the console due to the canister rejection.",
+        "All other pages that invoke backend queries handle canister rejection errors the same way."
       ]
     },
     {
-      "id": "REQ-29",
-      "text": "Audit all page-level components (Teams.tsx, MatchSetup.tsx, MatchHistory.tsx, LiveScoring.tsx, Scorecard.tsx, Rules.tsx) for runtime errors that prevent rendering. Fix any issues including: undefined/null data access before React Query results have loaded (add proper loading and error guards), broken or circular imports, missing default exports, and any top-level exceptions thrown during component initialization. Each page must render a visible loading state while data is being fetched and must not crash or display a blank screen.",
-      "target": "frontend",
+      "id": "REQ-2",
+      "text": "Ensure the backend Motoko actor in backend/main.mo compiles and is deployable without errors so the canister can be started and resume handling calls such as getAllTeams. Review the actor for any syntax errors, invalid stable variable declarations, or upgrade traps that could cause the canister to remain in a stopped state.",
+      "target": "backend",
       "source": {
         "messageIds": [
           "msg-4"
         ],
         "quotes": [
-          "not working Pages are not opening"
+          "Canister rde4o-bqaaa-aaaaj-a3oja-cai is stopped and therefore does not have a CallContextManager",
+          "Method name: getAllTeams"
         ]
       },
       "acceptanceCriteria": [
-        "Each page shows a loading indicator while backend queries are in-flight",
-        "Each page shows a meaningful error state if the backend query fails, rather than crashing",
-        "No page throws an unhandled runtime error when its data is undefined or null on first render",
-        "All page components have valid default exports",
-        "No circular import chains exist among page or component files"
-      ]
-    },
-    {
-      "id": "REQ-30",
-      "text": "Audit the useActor hook (frontend/src/hooks/useActor.ts) and the useQueries hooks (frontend/src/hooks/useQueries.ts) to ensure the backend actor is initialized correctly even when the user is not authenticated. Any query or mutation that attempts to call actor methods before the actor is ready must handle the uninitialized state gracefully (e.g., by keeping query enabled flags false until the actor is available) rather than throwing errors that propagate and break page rendering.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "not working Pages are not opening"
-        ]
-      },
-      "acceptanceCriteria": [
-        "Pages that depend on backend queries do not crash when the actor is not yet initialized",
-        "React Query hooks return loading or idle state rather than throwing when the actor is undefined",
-        "Once the actor becomes available, queries re-fetch and pages populate with data automatically"
-      ]
-    },
-    {
-      "id": "REQ-31",
-      "text": "Audit the Layout component (frontend/src/components/Layout.tsx) and the BottomTabNavigation component (frontend/src/components/BottomTabNavigation.tsx) to ensure the router outlet renders child page content correctly. Verify the Outlet component from TanStack Router is placed correctly inside the Layout, that no conditional logic inadvertently hides the outlet or replaces it with an empty fragment, and that the bottom tab navigation links use the correct href/to values matching the defined routes in App.tsx.",
-      "target": "frontend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "not working Pages are not opening"
-        ]
-      },
-      "acceptanceCriteria": [
-        "The main content area of the Layout renders the active route's page component",
-        "Bottom tab navigation links navigate to the correct routes without a full page reload",
-        "No page content is hidden by an incorrect conditional in Layout or BottomTabNavigation"
+        "The backend Motoko actor compiles without errors.",
+        "The canister starts successfully after deployment.",
+        "Calls to getAllTeams return a valid response (empty array or list of teams) without rejection."
       ]
     }
   ],
   "constraints": [
-    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
-    "Preserve all existing route definitions and do not remove any page components"
+    "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui.",
+    "All Motoko logic must remain in the single actor in backend/main.mo."
   ],
   "nonGoals": [
-    "Adding new features or pages",
-    "Changing the visual theme or styling",
-    "Modifying backend data models or Motoko logic",
-    "Changes to match scoring, team management, or rules content"
+    "Changing the canister ID or redeploying to a different canister.",
+    "Migrating or resetting backend state unless required to fix the stopped canister.",
+    "Adding new features beyond fixing the canister stopped error and improving error handling."
   ],
   "imageRequirements": {
     "required": [],

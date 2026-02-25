@@ -1,12 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Fix broken page navigation and rendering so all tabs and pages load correctly after Version 11.
+**Goal:** Fix the stopped canister error that causes `getAllTeams` (and other backend queries) to fail, and improve frontend error handling so users see a friendly message instead of raw rejection text.
 
 **Planned changes:**
-- Audit and fix TanStack Router configuration in `App.tsx` to ensure all routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) are correctly defined and render their page components
-- Fix page-level components (`Teams.tsx`, `MatchSetup.tsx`, `MatchHistory.tsx`, `LiveScoring.tsx`, `Scorecard.tsx`, `Rules.tsx`) to handle loading and error states gracefully, add missing default exports, and resolve any broken/circular imports
-- Fix `useQueries.ts` to guard against calling actor methods before the actor is initialized, using enabled flags to prevent premature queries
-- Audit `Layout.tsx` and `BottomTabNavigation.tsx` to ensure the `Outlet` is placed correctly and bottom tab links match the defined routes
+- Review and fix `backend/main.mo` for any syntax errors, invalid stable variable declarations, or upgrade traps that are causing the canister to remain in a stopped state.
+- Add graceful error handling on the Teams page (and any other page calling backend queries) to catch canister rejection errors (e.g., IC0508, reject code 5) and display a user-friendly message: "Unable to connect to the backend. Please try again later."
+- Add a "Retry" button in the error state that re-triggers the failed backend query.
+- Suppress raw rejection text from being shown to the user or thrown as unhandled JS errors.
 
-**User-visible outcome:** All bottom navigation tabs open their respective pages without blank screens or crashes. Pages show a loading indicator while data is fetching and an error message if something goes wrong.
+**User-visible outcome:** When the backend canister is unavailable, users see a friendly error message with a retry button instead of a raw rejection error. Once the canister is fixed and deployed, `getAllTeams` and other queries return valid responses normally.

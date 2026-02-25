@@ -24,10 +24,11 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTeams, useAddTeam, useAddPlayer } from "@/hooks/useQueries";
 import BulkPlayerUploadModal from "@/components/BulkPlayerUploadModal";
+import QueryErrorState from "@/components/QueryErrorState";
 import type { Team } from "@/backend";
 
 export default function Teams() {
-  const { data: teams, isLoading, isError, error } = useTeams();
+  const { data: teams, isLoading, isError, error, refetch } = useTeams();
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [addPlayerTeamId, setAddPlayerTeamId] = useState<bigint | null>(null);
@@ -49,13 +50,16 @@ export default function Teams() {
 
   if (isError) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Failed to load teams:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
-        </AlertDescription>
-      </Alert>
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-foreground">Teams</h2>
+        </div>
+        <QueryErrorState
+          error={error}
+          title="Failed to load teams"
+          onRetry={() => refetch()}
+        />
+      </div>
     );
   }
 

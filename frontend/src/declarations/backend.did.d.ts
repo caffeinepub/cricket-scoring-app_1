@@ -11,16 +11,17 @@ import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
 export interface BallByBallRecord {
-  'ballNumber' : bigint,
+  'ballNumber' : BallNumber,
   'batsmanId' : PlayerId,
   'wicket' : [] | [WicketType],
   'runs' : bigint,
   'isNoBall' : boolean,
   'isWide' : boolean,
-  'overNumber' : bigint,
+  'overNumber' : OverNumber,
   'isFreeHit' : boolean,
   'bowlerId' : PlayerId,
 }
+export type BallNumber = bigint;
 export interface Delivery {
   'batsmanId' : PlayerId,
   'wicket' : [] | [WicketType],
@@ -42,6 +43,7 @@ export interface Innings {
   'wicketsLost' : bigint,
   'battingTeamId' : TeamId,
 }
+export type InningsId = bigint;
 export interface Match {
   'id' : MatchId,
   'isFinished' : boolean,
@@ -61,6 +63,7 @@ export interface MatchRules {
   'oversLimit' : bigint,
   'powerplayOvers' : Array<bigint>,
 }
+export type OverNumber = bigint;
 export interface Player {
   'id' : PlayerId,
   'battingOrder' : bigint,
@@ -116,11 +119,12 @@ export interface _SERVICE {
   'addTeam' : ActorMethod<[string, string, string], TeamId>,
   'createMatch' : ActorMethod<[TeamId, TeamId, MatchRules], MatchId>,
   'getAllTeams' : ActorMethod<[], Array<Team>>,
+  'getDeliveriesByInnings' : ActorMethod<[MatchId, InningsId], Array<Delivery>>,
   'getMatch' : ActorMethod<[MatchId], [] | [Match]>,
   'getPlayerStats' : ActorMethod<[TeamId, PlayerId], [] | [Player]>,
   'getTeam' : ActorMethod<[TeamId], [] | [Team]>,
   'getTournamentRules' : ActorMethod<[], TournamentRules>,
-  'recordDelivery' : ActorMethod<[MatchId, Delivery], undefined>,
+  'recordDelivery' : ActorMethod<[MatchId, InningsId, Delivery], undefined>,
   'resetAllData' : ActorMethod<[], undefined>,
   'selectSquad' : ActorMethod<[TeamId, Array<PlayerId>], undefined>,
   'updateMatchRules' : ActorMethod<[MatchId, MatchRules], undefined>,

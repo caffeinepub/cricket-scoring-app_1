@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { useTeams, useCreateMatch, useSelectSquad } from "@/hooks/useQueries";
 import PlayingElevenSelector from "@/components/PlayingElevenSelector";
+import QueryErrorState from "@/components/QueryErrorState";
 import { saveMatchMeta, storeMatch } from "@/lib/matchStore";
 import type { Team } from "@/backend";
 
@@ -39,7 +40,13 @@ const STEP_LABELS: Record<Step, string> = {
 
 export default function MatchSetup() {
   const navigate = useNavigate();
-  const { data: teams, isLoading: teamsLoading, isError: teamsError } = useTeams();
+  const {
+    data: teams,
+    isLoading: teamsLoading,
+    isError: teamsError,
+    error: teamsErrorObj,
+    refetch: refetchTeams,
+  } = useTeams();
 
   const [currentStep, setCurrentStep] = useState<Step>("teams");
   const [teamAId, setTeamAId] = useState<string>("");
@@ -100,42 +107,31 @@ export default function MatchSetup() {
 
       const matchIdStr = matchId.toString();
 
-      // Save match metadata locally — saveMatchMeta(matchId, meta)
+      // Save match metadata locally
       saveMatchMeta(matchIdStr, {
-        teamAId: teamA.id.toString(),
-        teamBId: teamB.id.toString(),
-        teamAName: teamA.name,
-        teamBName: teamB.name,
-        teamAPlayers: teamA.players.map((p) => ({
-          id: p.id.toString(),
-          name: p.name,
-          battingOrder: p.battingOrder.toString(),
-          isBowler: p.isBowler,
-        })),
-        teamBPlayers: teamB.players.map((p) => ({
-          id: p.id.toString(),
-          name: p.name,
-          battingOrder: p.battingOrder.toString(),
-          isBowler: p.isBowler,
-        })),
-        teamAPlayingEleven: squadA.map(String),
-        teamBPlayingEleven: squadB.map(String),
-        strikerId: squadA[0]?.toString() ?? "",
-        nonStrikerId: squadA[1]?.toString() ?? "",
-        bowlerId: squadB[0]?.toString() ?? "",
-        oversLimit: overs,
+        matchId: matchIdStr,
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        teamAPlayingEleven: squadA,
+        teamBPlayingEleven: squadB,
+        strikerId: squadA[0] ?? null,
+        nonStrikerId: squadA[1] ?? null,
+        bowlerId: squadB[0] ?? null,
       });
 
-      // Store match in local history — storeMatch(meta: StoredMatch)
+      // Store match in local history
       storeMatch({
         matchId: matchIdStr,
         teamAName: teamA.name,
         teamBName: teamB.name,
-        teamAId: teamA.id.toString(),
-        teamBId: teamB.id.toString(),
-        date: new Date().toISOString(),
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        createdAt: Date.now(),
         isFinished: false,
       });
+
+      // Save current match ID for live scoring
+      localStorage.setItem('currentMatchId', matchIdStr);
 
       navigate({ to: "/match/$matchId", params: { matchId: matchIdStr } });
     } catch {
@@ -154,10 +150,17 @@ export default function MatchSetup() {
 
   if (teamsError) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Failed to load teams. Please try again.</AlertDescription>
-      </Alert>
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Match Setup</h2>
+          <p className="text-sm text-muted-foreground">Set up a new match</p>
+        </div>
+        <QueryErrorState
+          error={teamsErrorObj}
+          title="Failed to load teams"
+          onRetry={() => refetchTeams()}
+        />
+      </div>
     );
   }
 
@@ -167,16 +170,16 @@ export default function MatchSetup() {
       <div>
         <h2 className="text-xl font-bold text-foreground">Match Setup</h2>
         <p className="text-sm text-muted-foreground">
-          Step {stepIndex + 1} of {STEPS.length}: {STEP_LABELS[currentStep]}
+          Step {stepIndex + 1} of {STEPS.length} — {STEP_LABELS[currentStep]}
         </p>
       </div>
 
-      {/* Step indicators */}
+      {/* Step indicator */}
       <div className="flex gap-1">
         {STEPS.map((step, idx) => (
           <div
             key={step}
-            className={`flex-1 h-1.5 rounded-full transition-colors ${
+            className={`h-1.5 flex-1 rounded-full transition-colors ${
               idx <= stepIndex ? "bg-primary" : "bg-muted"
             }`}
           />
@@ -185,7 +188,7 @@ export default function MatchSetup() {
 
       {/* Step content */}
       {currentStep === "teams" && (
-        <TeamsStep
+        <TeamSelectionStep
           teams={teamList}
           teamAId={teamAId}
           teamBId={teamBId}
@@ -228,20 +231,31 @@ export default function MatchSetup() {
         />
       )}
 
+      {/* Mutation errors */}
+      {(createMatch.isError || selectSquad.isError) && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {createMatch.isError
+              ? "Failed to create match. Please try again."
+              : "Failed to save squad. Please try again."}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Navigation */}
-      <div className="flex justify-between pt-2">
-        <Button
-          variant="outline"
-          onClick={handleBack}
-          disabled={stepIndex === 0}
-        >
-          <ChevronLeft size={16} className="mr-1" />
-          Back
-        </Button>
+      <div className="flex gap-3 pt-2">
+        {stepIndex > 0 && (
+          <Button variant="outline" onClick={handleBack} className="flex-1">
+            <ChevronLeft size={16} className="mr-1" />
+            Back
+          </Button>
+        )}
 
         {currentStep !== "confirm" ? (
           <Button
             onClick={handleNext}
+            className="flex-1"
             disabled={
               (currentStep === "teams" && !canProceedFromTeams) ||
               (currentStep === "playing11" && !canProceedFromPlaying11) ||
@@ -254,12 +268,8 @@ export default function MatchSetup() {
         ) : (
           <Button
             onClick={handleStartMatch}
-            disabled={
-              createMatch.isPending ||
-              selectSquad.isPending ||
-              !teamA ||
-              !teamB
-            }
+            className="flex-1"
+            disabled={createMatch.isPending || selectSquad.isPending}
           >
             {(createMatch.isPending || selectSquad.isPending) && (
               <Loader2 size={14} className="mr-1 animate-spin" />
@@ -268,27 +278,13 @@ export default function MatchSetup() {
           </Button>
         )}
       </div>
-
-      {/* Error display */}
-      {(createMatch.isError || selectSquad.isError) && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {createMatch.error instanceof Error
-              ? createMatch.error.message
-              : selectSquad.error instanceof Error
-              ? selectSquad.error.message
-              : "Failed to start match"}
-          </AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 }
 
-// ─── Step Components ──────────────────────────────────────────────────────────
+// ─── Sub-components ────────────────────────────────────────────────────────────
 
-function TeamsStep({
+function TeamSelectionStep({
   teams,
   teamAId,
   teamBId,
@@ -308,7 +304,7 @@ function TeamsStep({
           <AlertCircle size={40} className="mx-auto mb-3 text-muted-foreground/40" />
           <p className="text-muted-foreground font-medium">Not enough teams</p>
           <p className="text-sm text-muted-foreground/70 mt-1">
-            You need at least 2 teams to set up a match.
+            You need at least 2 teams to set up a match. Go to Teams to add more.
           </p>
         </CardContent>
       </Card>
@@ -317,7 +313,7 @@ function TeamsStep({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Select Teams</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -330,9 +326,9 @@ function TeamsStep({
             <SelectContent>
               {teams
                 .filter((t) => t.id.toString() !== teamBId)
-                .map((team) => (
-                  <SelectItem key={team.id.toString()} value={team.id.toString()}>
-                    {team.name}
+                .map((t) => (
+                  <SelectItem key={t.id.toString()} value={t.id.toString()}>
+                    {t.name}
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -347,9 +343,9 @@ function TeamsStep({
             <SelectContent>
               {teams
                 .filter((t) => t.id.toString() !== teamAId)
-                .map((team) => (
-                  <SelectItem key={team.id.toString()} value={team.id.toString()}>
-                    {team.name}
+                .map((t) => (
+                  <SelectItem key={t.id.toString()} value={t.id.toString()}>
+                    {t.name}
                   </SelectItem>
                 ))}
             </SelectContent>
@@ -379,10 +375,9 @@ function Playing11Step({
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{teamA.name}</CardTitle>
+          <CardTitle className="text-base">{teamA.name}</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* PlayingElevenSelector expects: players, selected, onChange */}
           <PlayingElevenSelector
             players={teamA.players}
             selected={squadA}
@@ -392,7 +387,7 @@ function Playing11Step({
       </Card>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">{teamB.name}</CardTitle>
+          <CardTitle className="text-base">{teamB.name}</CardTitle>
         </CardHeader>
         <CardContent>
           <PlayingElevenSelector
@@ -423,7 +418,7 @@ function RulesStep({
 }) {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-3">
         <CardTitle className="text-base">Match Rules</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -457,7 +452,7 @@ function RulesStep({
             onChange={(e) => onFreeHitChange(e.target.checked)}
             className="w-4 h-4"
           />
-          <Label htmlFor="free-hit">Enable Free Hit on No Ball</Label>
+          <Label htmlFor="free-hit">Free Hit on No Ball</Label>
         </div>
       </CardContent>
     </Card>
@@ -481,6 +476,9 @@ function ConfirmStep({
   maxOversPerBowler: number;
   freeHitEnabled: boolean;
 }) {
+  const getPlayerName = (team: Team, id: bigint) =>
+    team.players.find((p) => p.id === id)?.name ?? id.toString();
+
   return (
     <div className="space-y-3">
       <Card>
@@ -492,38 +490,58 @@ function ConfirmStep({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex justify-between items-center">
-            <div className="text-center flex-1">
-              <p className="font-bold text-foreground">{teamA.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {squadA.length} players selected
-              </p>
-            </div>
-            <div className="text-muted-foreground font-bold">vs</div>
-            <div className="text-center flex-1">
-              <p className="font-bold text-foreground">{teamB.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {squadB.length} players selected
-              </p>
-            </div>
+            <span className="text-sm text-muted-foreground">Teams</span>
+            <span className="text-sm font-medium">
+              {teamA.name} vs {teamB.name}
+            </span>
           </div>
-          <div className="border-t pt-3 space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Overs</span>
-              <span className="font-medium">{overs}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Max overs/bowler</span>
-              <span className="font-medium">{maxOversPerBowler}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Free Hit</span>
-              <Badge variant={freeHitEnabled ? "default" : "secondary"}>
-                {freeHitEnabled ? "Enabled" : "Disabled"}
-              </Badge>
-            </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Overs</span>
+            <Badge variant="outline">{overs} overs</Badge>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Max per Bowler</span>
+            <Badge variant="outline">{maxOversPerBowler} overs</Badge>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Free Hit</span>
+            <Badge variant={freeHitEnabled ? "default" : "secondary"}>
+              {freeHitEnabled ? "Enabled" : "Disabled"}
+            </Badge>
           </div>
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Card>
+          <CardHeader className="pb-1 pt-3 px-3">
+            <CardTitle className="text-sm">{teamA.name} XI</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3">
+            <div className="space-y-0.5">
+              {squadA.map((id, i) => (
+                <p key={id.toString()} className="text-xs text-muted-foreground">
+                  {i + 1}. {getPlayerName(teamA, id)}
+                </p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-1 pt-3 px-3">
+            <CardTitle className="text-sm">{teamB.name} XI</CardTitle>
+          </CardHeader>
+          <CardContent className="px-3 pb-3">
+            <div className="space-y-0.5">
+              {squadB.map((id, i) => (
+                <p key={id.toString()} className="text-xs text-muted-foreground">
+                  {i + 1}. {getPlayerName(teamB, id)}
+                </p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

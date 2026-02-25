@@ -1,332 +1,365 @@
-import { useParams, useSearch, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, AlertCircle, Trophy } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useMatch, useTeam } from "@/hooks/useQueries";
-import { getMatchMeta } from "@/lib/matchStore";
-import type { BallByBallRecord, Player } from "@/backend";
+import { useParams, useNavigate } from '@tanstack/react-router';
+import { useGetDeliveriesByInnings, useGetMatch, useGetAllTeams } from '../hooks/useQueries';
+import { getStoredMatches } from '../lib/matchStore';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Trophy, ArrowLeft } from 'lucide-react';
+import QueryErrorState from '@/components/QueryErrorState';
+import type { Delivery, Player } from '../backend';
 
-export default function Scorecard() {
-  // Try path params first, then search params
-  let matchIdStr: string | undefined;
-  try {
-    const params = useParams({ strict: false });
-    matchIdStr = (params as Record<string, string>)?.matchId;
-  } catch {
-    matchIdStr = undefined;
+function computeBattingStats(deliveries: Delivery[], players: Player[]) {
+  const stats: Record<string, { runs: number; balls: number; fours: number; sixes: number; dismissed: boolean }> = {};
+
+  for (const d of deliveries) {
+    const id = d.batsmanId.toString();
+    if (!stats[id]) stats[id] = { runs: 0, balls: 0, fours: 0, sixes: 0, dismissed: false };
+    if (!d.isWide) {
+      stats[id].balls++;
+      stats[id].runs += Number(d.runs);
+      if (Number(d.runs) === 4) stats[id].fours++;
+      if (Number(d.runs) === 6) stats[id].sixes++;
+    }
+    if (d.wicket != null) stats[id].dismissed = true;
   }
 
-  let searchMatchId: string | undefined;
-  try {
-    const search = useSearch({ strict: false });
-    searchMatchId = (search as Record<string, string>)?.matchId;
-  } catch {
-    searchMatchId = undefined;
+  return players
+    .filter(p => stats[p.id.toString()])
+    .map(p => ({
+      player: p,
+      ...stats[p.id.toString()],
+      strikeRate: stats[p.id.toString()].balls > 0
+        ? ((stats[p.id.toString()].runs / stats[p.id.toString()].balls) * 100).toFixed(1)
+        : '0.0',
+    }));
+}
+
+function computeBowlingStats(deliveries: Delivery[], players: Player[]) {
+  const stats: Record<string, { runs: number; balls: number; wickets: number; wides: number; noBalls: number }> = {};
+
+  for (const d of deliveries) {
+    const id = d.bowlerId.toString();
+    if (!stats[id]) stats[id] = { runs: 0, balls: 0, wickets: 0, wides: 0, noBalls: 0 };
+    stats[id].runs += Number(d.runs) + (d.isWide ? 1 : 0) + (d.isNoBall ? 1 : 0);
+    if (!d.isWide && !d.isNoBall) stats[id].balls++;
+    if (d.isWide) stats[id].wides++;
+    if (d.isNoBall) stats[id].noBalls++;
+    if (d.wicket != null) stats[id].wickets++;
   }
 
-  const resolvedMatchId = matchIdStr || searchMatchId;
-  const matchIdBigInt = resolvedMatchId ? BigInt(resolvedMatchId) : null;
+  return players
+    .filter(p => stats[p.id.toString()])
+    .map(p => {
+      const s = stats[p.id.toString()];
+      const overs = Math.floor(s.balls / 6) + (s.balls % 6) / 10;
+      const economy = s.balls > 0 ? ((s.runs / s.balls) * 6).toFixed(2) : '0.00';
+      return { player: p, ...s, overs: overs.toFixed(1), economy };
+    });
+}
 
-  const navigate = useNavigate();
-  const { data: match, isLoading: matchLoading, isError: matchError } = useMatch(matchIdBigInt);
+function InningsSummary({
+  inningsNum,
+  battingTeamName,
+  bowlingTeamName,
+  deliveries,
+  battingPlayers,
+  bowlingPlayers,
+}: {
+  inningsNum: number;
+  battingTeamName: string;
+  bowlingTeamName: string;
+  deliveries: Delivery[];
+  battingPlayers: Player[];
+  bowlingPlayers: Player[];
+}) {
+  const battingStats = computeBattingStats(deliveries, battingPlayers);
+  const bowlingStats = computeBowlingStats(deliveries, bowlingPlayers);
 
-  const teamAId = match?.teamAId ?? null;
-  const teamBId = match?.teamBId ?? null;
+  const totalRuns = deliveries.reduce((sum, d) =>
+    sum + Number(d.runs) + (d.isWide ? 1 : 0) + (d.isNoBall ? 1 : 0), 0);
+  const totalWickets = deliveries.filter(d => d.wicket != null).length;
+  const legalBalls = deliveries.filter(d => !d.isWide && !d.isNoBall).length;
+  const overs = Math.floor(legalBalls / 6);
+  const balls = legalBalls % 6;
 
-  const { data: teamA, isLoading: teamALoading } = useTeam(teamAId);
-  const { data: teamB, isLoading: teamBLoading } = useTeam(teamBId);
-
-  const matchMeta = resolvedMatchId ? getMatchMeta(resolvedMatchId) : null;
-
-  const isLoading = matchLoading || teamALoading || teamBLoading;
-
-  if (!resolvedMatchId) {
+  if (deliveries.length === 0) {
     return (
-      <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>No match ID provided.</AlertDescription>
-        </Alert>
-        <Button variant="outline" onClick={() => navigate({ to: "/" })}>
-          <ArrowLeft size={16} className="mr-1" />
-          Go Home
-        </Button>
-      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Innings {inningsNum} — {battingTeamName}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No deliveries recorded yet.</p>
+        </CardContent>
+      </Card>
     );
   }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-32 w-full rounded-lg" />
-        <Skeleton className="h-64 w-full rounded-lg" />
-      </div>
-    );
-  }
-
-  if (matchError || !match) {
-    return (
-      <div className="space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {matchError ? "Failed to load match data." : "Match not found."}
-          </AlertDescription>
-        </Alert>
-        <Button variant="outline" onClick={() => navigate({ to: "/" })}>
-          <ArrowLeft size={16} className="mr-1" />
-          Go Home
-        </Button>
-      </div>
-    );
-  }
-
-  const allPlayers: Player[] = [
-    ...(teamA?.players ?? []),
-    ...(teamB?.players ?? []),
-  ];
-
-  const getPlayerName = (id: bigint) => {
-    const p = allPlayers.find((pl) => pl.id === id);
-    return p?.name ?? `Player ${id}`;
-  };
-
-  const getWicketLabel = (wicket: BallByBallRecord["wicket"]) => {
-    if (!wicket) return "";
-    switch (wicket.__kind__) {
-      case "Bowled": return "b";
-      case "Caught": return "c";
-      case "LBW": return "lbw";
-      case "RunOut": return "run out";
-      case "Stumped": return "st";
-      case "HitWicket": return "hit wicket";
-      case "Other": return wicket.Other ?? "out";
-      default: return "out";
-    }
-  };
-
-  // Compute batting stats per innings
-  const computeBattingStats = (inningsDeliveries: BallByBallRecord[], battingTeamId: bigint) => {
-    const stats: Record<string, { runs: number; balls: number; fours: number; sixes: number; dismissed: boolean; wicketType?: string }> = {};
-
-    for (const d of inningsDeliveries) {
-      const key = d.batsmanId.toString();
-      if (!stats[key]) {
-        stats[key] = { runs: 0, balls: 0, fours: 0, sixes: 0, dismissed: false };
-      }
-      if (!d.isWide) stats[key].balls++;
-      stats[key].runs += Number(d.runs);
-      if (Number(d.runs) === 4) stats[key].fours++;
-      if (Number(d.runs) === 6) stats[key].sixes++;
-      if (d.wicket) {
-        stats[key].dismissed = true;
-        stats[key].wicketType = getWicketLabel(d.wicket);
-      }
-    }
-
-    return stats;
-  };
-
-  // Compute bowling stats per innings
-  const computeBowlingStats = (inningsDeliveries: BallByBallRecord[]) => {
-    const stats: Record<string, { overs: number; balls: number; runs: number; wickets: number; wides: number; noBalls: number }> = {};
-
-    for (const d of inningsDeliveries) {
-      const key = d.bowlerId.toString();
-      if (!stats[key]) {
-        stats[key] = { overs: 0, balls: 0, runs: 0, wickets: 0, wides: 0, noBalls: 0 };
-      }
-      if (!d.isWide && !d.isNoBall) stats[key].balls++;
-      stats[key].runs += Number(d.runs);
-      if (d.wicket) stats[key].wickets++;
-      if (d.isWide) stats[key].wides++;
-      if (d.isNoBall) stats[key].noBalls++;
-    }
-
-    // Convert balls to overs
-    for (const key of Object.keys(stats)) {
-      const s = stats[key];
-      s.overs = Math.floor(s.balls / 6);
-      s.balls = s.balls % 6;
-    }
-
-    return stats;
-  };
 
   return (
-    <div className="space-y-4">
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">Innings {inningsNum} — {battingTeamName}</CardTitle>
+          <Badge variant="secondary" className="text-sm font-bold">
+            {totalRuns}/{totalWickets} ({overs}.{balls})
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Batting */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Batting</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground border-b">
+                  <th className="text-left py-1 font-medium">Batsman</th>
+                  <th className="text-right py-1 font-medium">R</th>
+                  <th className="text-right py-1 font-medium">B</th>
+                  <th className="text-right py-1 font-medium">4s</th>
+                  <th className="text-right py-1 font-medium">6s</th>
+                  <th className="text-right py-1 font-medium">SR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {battingStats.map(({ player, runs, balls, fours, sixes, strikeRate, dismissed }) => (
+                  <tr key={player.id.toString()} className="border-b border-muted/30">
+                    <td className="py-1.5">
+                      <span className="font-medium">{player.name}</span>
+                      {dismissed && <span className="text-xs text-muted-foreground ml-1">(out)</span>}
+                    </td>
+                    <td className="text-right py-1.5 font-semibold">{runs}</td>
+                    <td className="text-right py-1.5 text-muted-foreground">{balls}</td>
+                    <td className="text-right py-1.5">{fours}</td>
+                    <td className="text-right py-1.5">{sixes}</td>
+                    <td className="text-right py-1.5 text-muted-foreground">{strikeRate}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="py-1.5 font-semibold text-sm" colSpan={6}>
+                    Total: {totalRuns}/{totalWickets} in {overs}.{balls} overs
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Bowling */}
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Bowling</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-muted-foreground border-b">
+                  <th className="text-left py-1 font-medium">Bowler</th>
+                  <th className="text-right py-1 font-medium">O</th>
+                  <th className="text-right py-1 font-medium">R</th>
+                  <th className="text-right py-1 font-medium">W</th>
+                  <th className="text-right py-1 font-medium">Eco</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bowlingStats.map(({ player, overs, runs, wickets, economy }) => (
+                  <tr key={player.id.toString()} className="border-b border-muted/30">
+                    <td className="py-1.5 font-medium">{player.name}</td>
+                    <td className="text-right py-1.5 text-muted-foreground">{overs}</td>
+                    <td className="text-right py-1.5">{runs}</td>
+                    <td className="text-right py-1.5 font-semibold">{wickets}</td>
+                    <td className="text-right py-1.5 text-muted-foreground">{economy}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Scorecard() {
+  const params = useParams({ strict: false }) as { matchId?: string };
+  const navigate = useNavigate();
+
+  const resolvedMatchId = params.matchId ?? localStorage.getItem('currentMatchId') ?? '';
+  const matchIdBigInt = resolvedMatchId ? BigInt(resolvedMatchId) : BigInt(0);
+
+  const {
+    data: match,
+    isLoading: matchLoading,
+    isError: matchError,
+    error: matchErrorObj,
+    refetch: refetchMatch,
+  } = useGetMatch(matchIdBigInt);
+
+  const {
+    data: allTeams = [],
+    isError: teamsError,
+    error: teamsErrorObj,
+    refetch: refetchTeams,
+  } = useGetAllTeams();
+
+  const {
+    data: innings1Deliveries = [],
+    isError: innings1Error,
+    error: innings1ErrorObj,
+    refetch: refetchInnings1,
+  } = useGetDeliveriesByInnings(matchIdBigInt, BigInt(1));
+
+  const {
+    data: innings2Deliveries = [],
+    isError: innings2Error,
+    error: innings2ErrorObj,
+    refetch: refetchInnings2,
+  } = useGetDeliveriesByInnings(matchIdBigInt, BigInt(2));
+
+  // Get match result from localStorage
+  const storedMatches = getStoredMatches();
+  const storedMatch = storedMatches.find(m => m.matchId === resolvedMatchId);
+  const matchResult = storedMatch?.result;
+
+  // Also check cricket_match_state for result
+  let liveResult: string | null = null;
+  try {
+    const raw = localStorage.getItem(`cricket_match_state_${resolvedMatchId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      liveResult = parsed.matchResult ?? null;
+    }
+  } catch {}
+
+  const displayResult = matchResult ?? liveResult;
+
+  // Aggregate error state
+  const hasError = matchError || teamsError || innings1Error || innings2Error;
+  const firstError = matchErrorObj ?? teamsErrorObj ?? innings1ErrorObj ?? innings2ErrorObj;
+
+  if (matchLoading) {
+    return (
+      <div className="pb-24 px-4 pt-4 max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-9 w-9 rounded-md" />
+          <div className="space-y-1">
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <Skeleton className="h-48 w-full rounded-lg" />
+        <Skeleton className="h-48 w-full rounded-lg" />
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="pb-24 px-4 pt-4 max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/' })}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-xl font-bold">Scorecard</h1>
+        </div>
+        <QueryErrorState
+          error={firstError}
+          title="Failed to load scorecard"
+          onRetry={() => {
+            refetchMatch();
+            refetchTeams();
+            refetchInnings1();
+            refetchInnings2();
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!match) {
+    return (
+      <div className="p-4">
+        <p className="text-muted-foreground">No match data found.</p>
+        <Button variant="outline" className="mt-4" onClick={() => navigate({ to: '/' })}>
+          Go Home
+        </Button>
+      </div>
+    );
+  }
+
+  const teamA = allTeams.find(t => t.id === match.teamAId);
+  const teamB = allTeams.find(t => t.id === match.teamBId);
+  const teamAName = teamA?.name ?? 'Team A';
+  const teamBName = teamB?.name ?? 'Team B';
+  const teamAPlayers = teamA?.players ?? [];
+  const teamBPlayers = teamB?.players ?? [];
+
+  return (
+    <div className="pb-24 px-4 pt-4 max-w-lg mx-auto space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate({ to: "/" })}>
-          <ArrowLeft size={18} />
+        <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/' })}>
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h2 className="text-xl font-bold text-foreground">Scorecard</h2>
-          <p className="text-sm text-muted-foreground">
-            {matchMeta?.teamAName ?? teamA?.name ?? "Team A"} vs{" "}
-            {matchMeta?.teamBName ?? teamB?.name ?? "Team B"}
-          </p>
+          <h1 className="text-xl font-bold">Scorecard</h1>
+          <p className="text-sm text-muted-foreground">{teamAName} vs {teamBName}</p>
         </div>
-        {match.isFinished && (
-          <Badge className="ml-auto bg-accent text-accent-foreground">
-            <Trophy size={12} className="mr-1" />
-            Finished
-          </Badge>
-        )}
       </div>
 
-      {/* Innings scorecards */}
-      {match.innings.map((innings, idx) => {
-        const battingTeam = innings.battingTeamId === match.teamAId ? teamA : teamB;
-        const bowlingTeam = innings.bowlingTeamId === match.teamAId ? teamA : teamB;
+      {/* Match Result */}
+      {displayResult && (
+        <Card className="border-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2 justify-center">
+              <Trophy className="h-5 w-5 text-yellow-600" />
+              <p className="font-bold text-yellow-800 dark:text-yellow-200">{displayResult}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        // Filter deliveries for this innings
-        const inningsDeliveries = match.deliveries.filter(
-          (d) => Number(d.overNumber) >= 1
-        );
+      {/* Innings 1 */}
+      <InningsSummary
+        inningsNum={1}
+        battingTeamName={teamAName}
+        bowlingTeamName={teamBName}
+        deliveries={innings1Deliveries}
+        battingPlayers={teamAPlayers}
+        bowlingPlayers={teamBPlayers}
+      />
 
-        // For multi-innings, split by innings index
-        const inningsStart = idx === 0 ? 0 : Math.floor(match.deliveries.length / 2);
-        const inningsEnd = idx === 0 ? Math.floor(match.deliveries.length / 2) : match.deliveries.length;
-        const thisInningsDeliveries = match.deliveries.slice(inningsStart, inningsEnd);
+      {/* Innings 2 */}
+      <InningsSummary
+        inningsNum={2}
+        battingTeamName={teamBName}
+        bowlingTeamName={teamAName}
+        deliveries={innings2Deliveries}
+        battingPlayers={teamBPlayers}
+        bowlingPlayers={teamAPlayers}
+      />
 
-        const battingStats = computeBattingStats(thisInningsDeliveries, innings.battingTeamId);
-        const bowlingStats = computeBowlingStats(thisInningsDeliveries);
-
-        const totalRuns = Number(innings.totalRuns);
-        const wickets = Number(innings.wicketsLost);
-        const overs = Number(innings.overs);
-
-        return (
-          <div key={innings.id.toString()} className="space-y-3">
-            {/* Innings header */}
-            <Card>
-              <CardContent className="pt-4 pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-foreground">
-                      {battingTeam?.name ?? "Team"} — Innings {idx + 1}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      vs {bowlingTeam?.name ?? "Team"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-foreground">
-                      {totalRuns}/{wickets}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{overs} overs</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Batting scorecard */}
-            {Object.keys(battingStats).length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Batting</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Batsman</TableHead>
-                        <TableHead className="text-right">R</TableHead>
-                        <TableHead className="text-right">B</TableHead>
-                        <TableHead className="text-right">4s</TableHead>
-                        <TableHead className="text-right">6s</TableHead>
-                        <TableHead className="text-right">SR</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.entries(battingStats).map(([playerId, stats]) => (
-                        <TableRow key={playerId}>
-                          <TableCell className="font-medium text-sm">
-                            <div>
-                              {getPlayerName(BigInt(playerId))}
-                              {stats.dismissed && (
-                                <span className="text-xs text-muted-foreground ml-1">
-                                  ({stats.wicketType})
-                                </span>
-                              )}
-                              {!stats.dismissed && (
-                                <span className="text-xs text-green-600 ml-1">*</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-bold">{stats.runs}</TableCell>
-                          <TableCell className="text-right">{stats.balls}</TableCell>
-                          <TableCell className="text-right">{stats.fours}</TableCell>
-                          <TableCell className="text-right">{stats.sixes}</TableCell>
-                          <TableCell className="text-right">
-                            {stats.balls > 0
-                              ? ((stats.runs / stats.balls) * 100).toFixed(1)
-                              : "0.0"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Bowling scorecard */}
-            {Object.keys(bowlingStats).length > 0 && (
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Bowling</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Bowler</TableHead>
-                        <TableHead className="text-right">O</TableHead>
-                        <TableHead className="text-right">R</TableHead>
-                        <TableHead className="text-right">W</TableHead>
-                        <TableHead className="text-right">Eco</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.entries(bowlingStats).map(([playerId, stats]) => (
-                        <TableRow key={playerId}>
-                          <TableCell className="font-medium text-sm">
-                            {getPlayerName(BigInt(playerId))}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {stats.overs}.{stats.balls}
-                          </TableCell>
-                          <TableCell className="text-right">{stats.runs}</TableCell>
-                          <TableCell className="text-right font-bold">{stats.wickets}</TableCell>
-                          <TableCell className="text-right">
-                            {stats.overs > 0 || stats.balls > 0
-                              ? (stats.runs / (stats.overs + stats.balls / 6)).toFixed(2)
-                              : "0.00"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        );
-      })}
+      {/* Navigation */}
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => navigate({ to: '/live' })}
+        >
+          Back to Live Scoring
+        </Button>
+        <Button
+          variant="outline"
+          className="flex-1"
+          onClick={() => navigate({ to: '/history' })}
+        >
+          Match History
+        </Button>
+      </div>
     </div>
   );
 }

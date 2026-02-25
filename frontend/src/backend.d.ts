@@ -7,7 +7,6 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export type PlayerId = bigint;
 export interface Player {
     id: PlayerId;
     battingOrder: bigint;
@@ -37,16 +36,32 @@ export type WicketType = {
     Caught: null;
 };
 export interface BallByBallRecord {
-    ballNumber: bigint;
+    ballNumber: BallNumber;
     batsmanId: PlayerId;
     wicket?: WicketType;
     runs: bigint;
     isNoBall: boolean;
     isWide: boolean;
-    overNumber: bigint;
+    overNumber: OverNumber;
     isFreeHit: boolean;
     bowlerId: PlayerId;
 }
+export interface Match {
+    id: MatchId;
+    isFinished: boolean;
+    deliveries: Array<BallByBallRecord>;
+    winner?: TeamId;
+    teamAId: TeamId;
+    teamBId: TeamId;
+    innings: Array<Innings>;
+    currentInnings: bigint;
+    rules: MatchRules;
+}
+export type MatchId = bigint;
+export type TeamId = bigint;
+export type PlayerId = bigint;
+export type InningsId = bigint;
+export type BallNumber = bigint;
 export interface Delivery {
     batsmanId: PlayerId;
     wicket?: WicketType;
@@ -102,19 +117,7 @@ export interface TournamentRules {
     timeoutDurationSeconds: bigint;
     maxBallsPerBatsmanLongFormat: bigint;
 }
-export interface Match {
-    id: MatchId;
-    isFinished: boolean;
-    deliveries: Array<BallByBallRecord>;
-    winner?: TeamId;
-    teamAId: TeamId;
-    teamBId: TeamId;
-    innings: Array<Innings>;
-    currentInnings: bigint;
-    rules: MatchRules;
-}
-export type MatchId = bigint;
-export type TeamId = bigint;
+export type OverNumber = bigint;
 export interface Team {
     id: TeamId;
     logo: string;
@@ -128,11 +131,12 @@ export interface backendInterface {
     addTeam(name: string, color: string, logo: string): Promise<TeamId>;
     createMatch(teamAId: TeamId, teamBId: TeamId, rules: MatchRules): Promise<MatchId>;
     getAllTeams(): Promise<Array<Team>>;
+    getDeliveriesByInnings(matchId: MatchId, inningsId: InningsId): Promise<Array<Delivery>>;
     getMatch(matchId: MatchId): Promise<Match | null>;
     getPlayerStats(teamId: TeamId, playerId: PlayerId): Promise<Player | null>;
     getTeam(teamId: TeamId): Promise<Team | null>;
     getTournamentRules(): Promise<TournamentRules>;
-    recordDelivery(matchId: MatchId, delivery: Delivery): Promise<void>;
+    recordDelivery(matchId: MatchId, inningsId: InningsId, delivery: Delivery): Promise<void>;
     resetAllData(): Promise<void>;
     selectSquad(teamId: TeamId, squad: Array<PlayerId>): Promise<void>;
     updateMatchRules(matchId: MatchId, newRules: MatchRules): Promise<void>;

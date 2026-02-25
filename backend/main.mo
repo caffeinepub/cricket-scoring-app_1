@@ -1,17 +1,19 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
+import Iter "mo:core/Iter";
 import Map "mo:core/Map";
+
 import Nat "mo:core/Nat";
-import Int "mo:core/Int";
 import Order "mo:core/Order";
 import Runtime "mo:core/Runtime";
-
-
 
 actor {
   type TeamId = Nat;
   type PlayerId = Nat;
   type MatchId = Nat;
+  type InningsId = Nat;
+  type OverNumber = Nat;
+  type BallNumber = Nat;
 
   type Team = {
     id : TeamId;
@@ -60,8 +62,8 @@ actor {
   };
 
   type BallByBallRecord = {
-    overNumber : Nat;
-    ballNumber : Nat;
+    overNumber : OverNumber;
+    ballNumber : BallNumber;
     batsmanId : PlayerId;
     bowlerId : PlayerId;
     runs : Nat;
@@ -130,6 +132,7 @@ actor {
 
   let teamStore = Map.empty<TeamId, Team>();
   let matchStore = Map.empty<MatchId, Match>();
+  let deliveryStore = Map.empty<MatchId, Map.Map<InningsId, List.List<Delivery>>>();
 
   var tournamentRules : TournamentRules = {
     totalMatches = 0;
@@ -294,60 +297,51 @@ actor {
     };
 
     matchStore.add(matchId, newMatch);
+
+    let matchMap = Map.empty<InningsId, List.List<Delivery>>();
+    matchMap.add(1, List.empty<Delivery>());
+    matchMap.add(2, List.empty<Delivery>());
+    deliveryStore.add(matchId, matchMap);
+
     nextMatchId += 1;
     matchId;
   };
 
-  public shared ({ caller }) func recordDelivery(matchId : MatchId, delivery : Delivery) : async () {
-    let match = switch (matchStore.get(matchId)) {
-      case (null) { Runtime.trap("Match does not exist") };
-      case (?m) { m };
-    };
-
-    if (match.currentInnings > match.innings.size()) {
-      Runtime.trap("Invalid innings");
-    };
-
-    if (delivery.isNoBall) {
-      if (not match.rules.freeHitEnabled) {
-        Runtime.trap("Free hit is not enabled for this match");
+  public shared ({ caller }) func recordDelivery(matchId : MatchId, inningsId : InningsId, delivery : Delivery) : async () {
+    let matchMapOpt = deliveryStore.get(matchId);
+    switch (matchMapOpt) {
+      case (?matchMap) {
+        switch (matchMap.get(inningsId)) {
+          case (?deliveriesList) {
+            deliveriesList.add(delivery);
+          };
+          case (null) {
+            let newDeliveriesList = List.empty<Delivery>();
+            newDeliveriesList.add(delivery);
+            matchMap.add(inningsId, newDeliveriesList);
+          };
+        };
+      };
+      case (null) {
+        let newMatchMap = Map.empty<InningsId, List.List<Delivery>>();
+        let newDeliveriesList = List.empty<Delivery>();
+        newDeliveriesList.add(delivery);
+        newMatchMap.add(inningsId, newDeliveriesList);
+        deliveryStore.add(matchId, newMatchMap);
       };
     };
-
-    let currentInnings = match.innings[match.currentInnings - 1];
-    let overNumber = currentInnings.overs + 1;
-    let ballNumber = if (delivery.isNoBall or delivery.isWide) {
-      Int.abs(currentInnings.deliveries.size() % 6) + 1;
-    } else {
-      Int.abs((currentInnings.deliveries.size() + 1) % 6) + 1;
-    };
-
-    let ballByBallRecord : BallByBallRecord = {
-      overNumber;
-      ballNumber;
-      batsmanId = delivery.batsmanId;
-      bowlerId = delivery.bowlerId;
-      runs = delivery.runs;
-      isWide = delivery.isWide;
-      isNoBall = delivery.isNoBall;
-      isFreeHit = delivery.isFreeHit;
-      wicket = delivery.wicket;
-    };
-
-    let updatedDeliveries = match.deliveries.concat([ballByBallRecord]);
-    let updatedMatch = { match with deliveries = updatedDeliveries };
-
-    matchStore.add(matchId, updatedMatch);
   };
 
-  public shared ({ caller }) func updateMatchRules(matchId : MatchId, newRules : MatchRules) : async () {
-    let match = switch (matchStore.get(matchId)) {
-      case (null) { Runtime.trap("Match does not exist") };
-      case (?m) { m };
+  public query ({ caller }) func getDeliveriesByInnings(matchId : MatchId, inningsId : InningsId) : async [Delivery] {
+    switch (deliveryStore.get(matchId)) {
+      case (?map) {
+        switch (map.get(inningsId)) {
+          case (?list) { list.toArray() };
+          case (null) { [] };
+        };
+      };
+      case (null) { [] };
     };
-
-    let updatedMatch = { match with rules = newRules };
-    matchStore.add(matchId, updatedMatch);
   };
 
   public query ({ caller }) func getTeam(teamId : TeamId) : async ?Team {
@@ -382,6 +376,16 @@ actor {
     tournamentRules := rules;
   };
 
+  public shared ({ caller }) func updateMatchRules(matchId : MatchId, newRules : MatchRules) : async () {
+    let match = switch (matchStore.get(matchId)) {
+      case (null) { Runtime.trap("Match does not exist") };
+      case (?m) { m };
+    };
+
+    let updatedMatch = { match with rules = newRules };
+    matchStore.add(matchId, updatedMatch);
+  };
+
   public shared ({ caller }) func resetAllData() : async () {
     let defaultTournamentRules : TournamentRules = {
       totalMatches = 0;
@@ -413,6 +417,7 @@ actor {
 
     teamStore.clear();
     matchStore.clear();
+    deliveryStore.clear();
 
     tournamentRules := defaultTournamentRules;
     nextTeamId := 0;

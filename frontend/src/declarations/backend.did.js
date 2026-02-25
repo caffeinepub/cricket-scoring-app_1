@@ -32,6 +32,7 @@ export const Team = IDL.Record({
   'squad' : IDL.Vec(PlayerId),
   'players' : IDL.Vec(Player),
 });
+export const InningsId = IDL.Nat;
 export const WicketType = IDL.Variant({
   'LBW' : IDL.Null,
   'HitWicket' : IDL.Null,
@@ -40,17 +41,6 @@ export const WicketType = IDL.Variant({
   'Bowled' : IDL.Null,
   'Other' : IDL.Text,
   'Caught' : IDL.Null,
-});
-export const BallByBallRecord = IDL.Record({
-  'ballNumber' : IDL.Nat,
-  'batsmanId' : PlayerId,
-  'wicket' : IDL.Opt(WicketType),
-  'runs' : IDL.Nat,
-  'isNoBall' : IDL.Bool,
-  'isWide' : IDL.Bool,
-  'overNumber' : IDL.Nat,
-  'isFreeHit' : IDL.Bool,
-  'bowlerId' : PlayerId,
 });
 export const Delivery = IDL.Record({
   'batsmanId' : PlayerId,
@@ -61,6 +51,19 @@ export const Delivery = IDL.Record({
   'isFreeHit' : IDL.Bool,
   'isBye' : IDL.Bool,
   'isLegBye' : IDL.Bool,
+  'bowlerId' : PlayerId,
+});
+export const BallNumber = IDL.Nat;
+export const OverNumber = IDL.Nat;
+export const BallByBallRecord = IDL.Record({
+  'ballNumber' : BallNumber,
+  'batsmanId' : PlayerId,
+  'wicket' : IDL.Opt(WicketType),
+  'runs' : IDL.Nat,
+  'isNoBall' : IDL.Bool,
+  'isWide' : IDL.Bool,
+  'overNumber' : OverNumber,
+  'isFreeHit' : IDL.Bool,
   'bowlerId' : PlayerId,
 });
 export const Innings = IDL.Record({
@@ -117,11 +120,16 @@ export const idlService = IDL.Service({
   'addTeam' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [TeamId], []),
   'createMatch' : IDL.Func([TeamId, TeamId, MatchRules], [MatchId], []),
   'getAllTeams' : IDL.Func([], [IDL.Vec(Team)], ['query']),
+  'getDeliveriesByInnings' : IDL.Func(
+      [MatchId, InningsId],
+      [IDL.Vec(Delivery)],
+      ['query'],
+    ),
   'getMatch' : IDL.Func([MatchId], [IDL.Opt(Match)], ['query']),
   'getPlayerStats' : IDL.Func([TeamId, PlayerId], [IDL.Opt(Player)], ['query']),
   'getTeam' : IDL.Func([TeamId], [IDL.Opt(Team)], ['query']),
   'getTournamentRules' : IDL.Func([], [TournamentRules], ['query']),
-  'recordDelivery' : IDL.Func([MatchId, Delivery], [], []),
+  'recordDelivery' : IDL.Func([MatchId, InningsId, Delivery], [], []),
   'resetAllData' : IDL.Func([], [], []),
   'selectSquad' : IDL.Func([TeamId, IDL.Vec(PlayerId)], [], []),
   'updateMatchRules' : IDL.Func([MatchId, MatchRules], [], []),
@@ -155,6 +163,7 @@ export const idlFactory = ({ IDL }) => {
     'squad' : IDL.Vec(PlayerId),
     'players' : IDL.Vec(Player),
   });
+  const InningsId = IDL.Nat;
   const WicketType = IDL.Variant({
     'LBW' : IDL.Null,
     'HitWicket' : IDL.Null,
@@ -163,17 +172,6 @@ export const idlFactory = ({ IDL }) => {
     'Bowled' : IDL.Null,
     'Other' : IDL.Text,
     'Caught' : IDL.Null,
-  });
-  const BallByBallRecord = IDL.Record({
-    'ballNumber' : IDL.Nat,
-    'batsmanId' : PlayerId,
-    'wicket' : IDL.Opt(WicketType),
-    'runs' : IDL.Nat,
-    'isNoBall' : IDL.Bool,
-    'isWide' : IDL.Bool,
-    'overNumber' : IDL.Nat,
-    'isFreeHit' : IDL.Bool,
-    'bowlerId' : PlayerId,
   });
   const Delivery = IDL.Record({
     'batsmanId' : PlayerId,
@@ -184,6 +182,19 @@ export const idlFactory = ({ IDL }) => {
     'isFreeHit' : IDL.Bool,
     'isBye' : IDL.Bool,
     'isLegBye' : IDL.Bool,
+    'bowlerId' : PlayerId,
+  });
+  const BallNumber = IDL.Nat;
+  const OverNumber = IDL.Nat;
+  const BallByBallRecord = IDL.Record({
+    'ballNumber' : BallNumber,
+    'batsmanId' : PlayerId,
+    'wicket' : IDL.Opt(WicketType),
+    'runs' : IDL.Nat,
+    'isNoBall' : IDL.Bool,
+    'isWide' : IDL.Bool,
+    'overNumber' : OverNumber,
+    'isFreeHit' : IDL.Bool,
     'bowlerId' : PlayerId,
   });
   const Innings = IDL.Record({
@@ -244,6 +255,11 @@ export const idlFactory = ({ IDL }) => {
     'addTeam' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [TeamId], []),
     'createMatch' : IDL.Func([TeamId, TeamId, MatchRules], [MatchId], []),
     'getAllTeams' : IDL.Func([], [IDL.Vec(Team)], ['query']),
+    'getDeliveriesByInnings' : IDL.Func(
+        [MatchId, InningsId],
+        [IDL.Vec(Delivery)],
+        ['query'],
+      ),
     'getMatch' : IDL.Func([MatchId], [IDL.Opt(Match)], ['query']),
     'getPlayerStats' : IDL.Func(
         [TeamId, PlayerId],
@@ -252,7 +268,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getTeam' : IDL.Func([TeamId], [IDL.Opt(Team)], ['query']),
     'getTournamentRules' : IDL.Func([], [TournamentRules], ['query']),
-    'recordDelivery' : IDL.Func([MatchId, Delivery], [], []),
+    'recordDelivery' : IDL.Func([MatchId, InningsId, Delivery], [], []),
     'resetAllData' : IDL.Func([], [], []),
     'selectSquad' : IDL.Func([TeamId, IDL.Vec(PlayerId)], [], []),
     'updateMatchRules' : IDL.Func([MatchId, MatchRules], [], []),

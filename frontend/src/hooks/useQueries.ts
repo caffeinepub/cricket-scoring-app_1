@@ -6,21 +6,22 @@ import type {
   PlayerId,
   Match,
   MatchId,
+  InningsId,
   MatchRules,
   Delivery,
   TournamentRules,
 } from "@/backend";
 import {
   clearAllMatches,
-  clearAllMatchMetadata,
-  clearAllLiveMatchStates,
+  clearAllMeta,
+  clearAllLocalState,
+  clearAllMatchState,
 } from "@/lib/matchStore";
 
 // ─── Teams ────────────────────────────────────────────────────────────────────
 
-export function useTeams() {
+export function useGetAllTeams() {
   const { actor, isFetching } = useActor();
-
   return useQuery<Team[]>({
     queryKey: ["teams"],
     queryFn: async () => {
@@ -31,9 +32,11 @@ export function useTeams() {
   });
 }
 
-export function useTeam(teamId: TeamId | null) {
-  const { actor, isFetching } = useActor();
+// Alias for backward compat
+export const useTeams = useGetAllTeams;
 
+export function useGetTeam(teamId: TeamId | null) {
+  const { actor, isFetching } = useActor();
   return useQuery<Team | null>({
     queryKey: ["team", teamId?.toString()],
     queryFn: async () => {
@@ -44,10 +47,12 @@ export function useTeam(teamId: TeamId | null) {
   });
 }
 
+// Alias for backward compat
+export const useTeam = useGetTeam;
+
 export function useAddTeam() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       name,
@@ -70,7 +75,6 @@ export function useAddTeam() {
 export function useAddPlayer() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       teamId,
@@ -98,7 +102,6 @@ export function useAddPlayer() {
 export function useSelectSquad() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       teamId,
@@ -121,9 +124,8 @@ export function useSelectSquad() {
 
 // ─── Matches ──────────────────────────────────────────────────────────────────
 
-export function useMatch(matchId: MatchId | null) {
+export function useGetMatch(matchId: MatchId | null) {
   const { actor, isFetching } = useActor();
-
   return useQuery<Match | null>({
     queryKey: ["match", matchId?.toString()],
     queryFn: async () => {
@@ -131,14 +133,16 @@ export function useMatch(matchId: MatchId | null) {
       return actor.getMatch(matchId);
     },
     enabled: !!actor && !isFetching && matchId !== null,
-    refetchInterval: 5000,
+    staleTime: 0,
   });
 }
+
+// Alias for backward compat
+export const useMatch = useGetMatch;
 
 export function useCreateMatch() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       teamAId,
@@ -158,22 +162,55 @@ export function useCreateMatch() {
   });
 }
 
+// ─── Deliveries ───────────────────────────────────────────────────────────────
+
+export function useGetDeliveriesByInnings(
+  matchId: MatchId | null,
+  inningsId: InningsId | null
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Delivery[]>({
+    queryKey: ["deliveries", matchId?.toString(), inningsId?.toString()],
+    queryFn: async () => {
+      if (!actor || matchId === null || inningsId === null) return [];
+      return actor.getDeliveriesByInnings(matchId, inningsId);
+    },
+    enabled: !!actor && !isFetching && matchId !== null && inningsId !== null,
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+}
+
 export function useRecordDelivery() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       matchId,
+      inningsId,
       delivery,
     }: {
       matchId: MatchId;
+      inningsId: InningsId;
       delivery: Delivery;
     }) => {
       if (!actor) throw new Error("Actor not initialized");
-      return actor.recordDelivery(matchId, delivery);
+      return actor.recordDelivery(matchId, inningsId, delivery);
     },
     onSuccess: (_data, variables) => {
+      // Invalidate the specific innings deliveries
+      queryClient.invalidateQueries({
+        queryKey: [
+          "deliveries",
+          variables.matchId.toString(),
+          variables.inningsId.toString(),
+        ],
+      });
+      // Invalidate all deliveries for this match
+      queryClient.invalidateQueries({
+        queryKey: ["deliveries", variables.matchId.toString()],
+      });
+      // Invalidate the match itself
       queryClient.invalidateQueries({
         queryKey: ["match", variables.matchId.toString()],
       });
@@ -184,7 +221,6 @@ export function useRecordDelivery() {
 export function useUpdateMatchRules() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async ({
       matchId,
@@ -206,9 +242,8 @@ export function useUpdateMatchRules() {
 
 // ─── Tournament Rules ─────────────────────────────────────────────────────────
 
-export function useTournamentRules() {
+export function useGetTournamentRules() {
   const { actor, isFetching } = useActor();
-
   return useQuery<TournamentRules | null>({
     queryKey: ["tournamentRules"],
     queryFn: async () => {
@@ -219,10 +254,12 @@ export function useTournamentRules() {
   });
 }
 
+// Alias for backward compat
+export const useTournamentRules = useGetTournamentRules;
+
 export function useUpdateTournamentRules() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (rules: TournamentRules) => {
       if (!actor) throw new Error("Actor not initialized");
@@ -239,18 +276,16 @@ export function useUpdateTournamentRules() {
 export function useResetAllData() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error("Actor not initialized");
       return actor.resetAllData();
     },
     onSuccess: () => {
-      // Clear all localStorage state
       clearAllMatches();
-      clearAllMatchMetadata();
-      clearAllLiveMatchStates();
-      // Invalidate all queries
+      clearAllMeta();
+      clearAllLocalState();
+      clearAllMatchState();
       queryClient.invalidateQueries();
     },
   });

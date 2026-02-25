@@ -1,109 +1,77 @@
-import { Match, Team } from "@/backend";
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface ScoreDisplayProps {
-  match: Match;
-  teamA: Team;
-  teamB: Team;
+  battingTeamName: string;
+  bowlingTeamName: string;
+  runs: number;
+  wickets: number;
+  overs: string;
+  oversLimit: number;
+  innings: number;
+  target?: number | null;
+  runsRequired?: number | null;
+  innings1Summary?: string;
 }
 
-export default function ScoreDisplay({ match, teamA, teamB }: ScoreDisplayProps) {
-  const currentInningsIdx = Number(match.currentInnings) - 1;
-  const innings1 = match.innings[0];
-  const innings2 = match.innings[1];
-  const currentInnings = match.innings[currentInningsIdx];
-
-  const battingTeam = currentInnings?.battingTeamId === teamA.id ? teamA : teamB;
-  const bowlingTeam = currentInnings?.battingTeamId === teamA.id ? teamB : teamA;
-
-  const runs = Number(currentInnings?.totalRuns ?? 0);
-  const wickets = Number(currentInnings?.wicketsLost ?? 0);
-  const overs = Number(currentInnings?.overs ?? 0);
-
-  // Calculate balls in current over from deliveries
-  const currentOverDeliveries = currentInnings?.deliveries?.filter(
-    (d) => !d.isWide && !d.isNoBall
-  ) ?? [];
-  const ballsInCurrentOver = currentOverDeliveries.length % 6;
-
-  // Run rate
-  const totalBalls = overs * 6 + ballsInCurrentOver;
-  const runRate = totalBalls > 0 ? ((runs / totalBalls) * 6).toFixed(2) : "0.00";
-
-  // Target for 2nd innings
-  const isSecondInnings = Number(match.currentInnings) === 2;
-  const target = isSecondInnings ? Number(innings1?.totalRuns ?? 0) + 1 : null;
-  const runsNeeded = target ? target - runs : null;
-  const ballsLeft = isSecondInnings
-    ? Number(match.rules.oversLimit) * 6 - totalBalls
-    : null;
-
+export default function ScoreDisplay({
+  battingTeamName,
+  bowlingTeamName,
+  runs,
+  wickets,
+  overs,
+  oversLimit,
+  innings,
+  target,
+  runsRequired,
+  innings1Summary,
+}: ScoreDisplayProps) {
   return (
-    <div className="bg-[oklch(0.20_0.06_240)] rounded-xl p-4 shadow-card-md text-white">
-      {/* Teams row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex-1">
-          <p className="text-white/60 text-xs uppercase tracking-wider mb-0.5">Batting</p>
-          <p className="font-display text-base font-bold truncate">{battingTeam.name}</p>
-        </div>
-        <div className="text-center px-3">
-          <p className="text-white/40 text-xs">vs</p>
-        </div>
-        <div className="flex-1 text-right">
-          <p className="text-white/60 text-xs uppercase tracking-wider mb-0.5">Bowling</p>
-          <p className="font-display text-base font-bold truncate">{bowlingTeam.name}</p>
-        </div>
-      </div>
-
-      {/* Score */}
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="score-display text-4xl font-bold text-white leading-none">
-            {runs}/{wickets}
-          </div>
-          <div className="text-white/60 text-sm mt-1">
-            {overs}.{ballsInCurrentOver} overs
-          </div>
+    <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+      <CardContent className="pt-4 pb-4">
+        {/* Innings indicator */}
+        <div className="flex items-center justify-between mb-2">
+          <Badge variant="outline" className="text-xs">
+            Innings {innings}
+          </Badge>
+          {innings1Summary && (
+            <span className="text-xs text-muted-foreground">{innings1Summary}</span>
+          )}
         </div>
 
-        <div className="text-right space-y-1">
-          <div className="bg-white/10 rounded-lg px-3 py-1.5">
-            <p className="text-white/60 text-xs">Run Rate</p>
-            <p className="font-display text-lg font-bold text-[oklch(0.65_0.18_45)]">{runRate}</p>
+        {/* Main score */}
+        <div className="text-center">
+          <p className="text-sm font-medium text-muted-foreground mb-1">{battingTeamName}</p>
+          <div className="flex items-baseline justify-center gap-2">
+            <span className="text-5xl font-bold tabular-nums">{runs}</span>
+            <span className="text-2xl text-muted-foreground">/{wickets}</span>
           </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {overs} / {oversLimit} overs
+          </p>
         </div>
-      </div>
 
-      {/* Target info for 2nd innings */}
-      {isSecondInnings && target !== null && runsNeeded !== null && (
-        <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
-          <div>
-            <span className="text-white/60 text-xs">Target: </span>
-            <span className="font-display text-base font-bold text-[oklch(0.65_0.18_45)]">{target}</span>
+        {/* Target info for innings 2 */}
+        {innings === 2 && target != null && (
+          <div className="mt-3 pt-3 border-t border-primary/20">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Target</span>
+              <span className="font-semibold">{target}</span>
+            </div>
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-muted-foreground">Required</span>
+              <span className={`font-semibold ${runsRequired === 0 ? 'text-green-600' : ''}`}>
+                {runsRequired} runs
+              </span>
+            </div>
           </div>
-          <div>
-            <span className="text-white/60 text-xs">Need: </span>
-            <span className="font-display text-base font-bold">
-              {runsNeeded > 0 ? runsNeeded : 0} off {ballsLeft} balls
-            </span>
-          </div>
-        </div>
-      )}
+        )}
 
-      {/* Innings indicator */}
-      <div className="mt-2 flex gap-1">
-        {match.innings.map((_, idx) => (
-          <div
-            key={idx}
-            className={`h-1 flex-1 rounded-full ${
-              idx + 1 === Number(match.currentInnings)
-                ? "bg-[oklch(0.65_0.18_45)]"
-                : idx + 1 < Number(match.currentInnings)
-                ? "bg-white/40"
-                : "bg-white/10"
-            }`}
-          />
-        ))}
-      </div>
-    </div>
+        {/* Bowling team */}
+        <p className="text-xs text-center text-muted-foreground mt-2">
+          Bowling: {bowlingTeamName}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

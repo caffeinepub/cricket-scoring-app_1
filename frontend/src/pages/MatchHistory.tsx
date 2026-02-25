@@ -88,7 +88,7 @@ export default function MatchHistory() {
         </div>
       )}
 
-      {/* Reset All Data Modal — uses onConfirm + onCancel props */}
+      {/* Reset All Data Modal */}
       <ResetAllDataModal
         open={showResetModal}
         onConfirm={handleReset}
@@ -103,12 +103,12 @@ function MatchCard({ match }: { match: StoredMatch }) {
   const isLive = !match.isFinished;
   const isCompleted = match.isFinished;
 
-  const formatDate = (dateStr: string | undefined) => {
-    if (!dateStr) return "";
+  const formatDate = (ts: number | undefined) => {
+    if (!ts) return "";
     try {
-      return new Date(dateStr).toLocaleDateString();
+      return new Date(ts).toLocaleDateString();
     } catch {
-      return dateStr;
+      return "";
     }
   };
 
@@ -133,9 +133,12 @@ function MatchCard({ match }: { match: StoredMatch }) {
             <p className="font-semibold text-foreground truncate">
               {match.teamAName} vs {match.teamBName}
             </p>
+            {match.result && (
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{match.result}</p>
+            )}
             <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
               <Clock size={12} />
-              <span>{formatDate(match.date ?? match.createdAt)}</span>
+              <span>{formatDate(match.createdAt)}</span>
             </div>
           </div>
           <div className="flex flex-col gap-1 shrink-0">

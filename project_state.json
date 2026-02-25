@@ -1,343 +1,35 @@
 {
   "schemaVersion": "1.0.0",
-  "projectStateVersion": 25,
-  "summary": "Offline cricket scoring app that adheres to official cricket rules with dynamic rule adjustments during gameplay. Supports configurable overs, player participation, and scoring methods. Designed for both amateur and professional players with an intuitive UI.",
+  "projectStateVersion": 3,
+  "summary": "Project using Internet Computer (ICP) canisters. Currently experiencing a canister stopped error (IC0508) when calling getAllTeams on canister rde4o-bqaaa-aaaaj-a3oja-cai.",
   "architectural_notes": [
-    "App must operate fully offline — no internet dependency at runtime.",
-    "Use local storage (e.g., SQLite or IndexedDB) for match data persistence.",
-    "Architecture must be scalable to support future feature additions.",
-    "Tournament rules must be configurable and stored per tournament/match record, not hardcoded."
+    "Uses Internet Computer (ICP) canister architecture; canister ID rde4o-bqaaa-aaaaj-a3oja-cai hosts getAllTeams method"
   ],
   "known_issues": [
-    "Match setup screen shows 'Please select both teams' error even after both teams are selected for batting and bowling, preventing match start.",
-    "Login functionality is broken (not working).",
-    "Bulk player upload option is missing from the Teams page.",
-    "Opening batsmen and bowler dropdowns in match setup are not filtered to the selected playing 11 — they show the full squad instead.",
-    "Teams page is not opening/loading.",
-    "Start Match button not working — unable to proceed to live scoring after match setup.",
-    "Pages are not opening/rendering after latest build (Version 11) — app appears broken on navigation."
+    "Canister rde4o-bqaaa-aaaaj-a3oja-cai is stopped, causing IC0508 rejection errors on getAllTeams calls ('Failed to load teams')"
   ],
   "isFixRequest": true,
   "existing_features": [
     {
-      "id": "feature-build-a-match-setup-screen-where-the-user-can-select-or-create-two-teams-with-player-rosters-configure-match-rules-overs-powerplay-max-overs-per-bowler-free-hit-toggle-choose-the-toss-winner-and-their-decision-bat-bowl-and-assign-the-opening-batsmen-and-opening-bowler-before-starting-the-match",
-      "title": "Build a match setup screen where the user can: select or create two teams with player rosters, configure match rules (overs, powerplay, max overs per bowler, free-hit toggle), choose the toss winner and their decision (bat/bowl), and assign the opening batsmen and opening bowler before starting the match.",
+      "id": "feature-add-a-graceful-error-boundary-in-the-teams-page-and-any-other-page-that-calls-backend-queries-so-that-when-the-backend-canister-returns-a-rejection-error-e-g-ic0508-canister-is-stopped-the-ui-displays-a-user-friendly-error-message-unable-to-connect-to-the-backend-please-try-again-later-instead-of-the-raw-rejection-text-and-offers-a-retry-button-that-re-triggers-the-query",
+      "title": "Add a graceful error boundary in the Teams page (and any other page that calls backend queries) so that when the backend canister returns a rejection error (e.g., IC0508 'canister is stopped'), the UI displays a user-friendly error message ('Unable to connect to the backend. Please try again later.') instead of the raw rejection text, and offers a retry button that re-triggers the query.",
       "reqIds": [
-        "REQ-4"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-build-the-main-live-scoring-dashboard-it-must-display-the-current-score-runs-wickets-overs-bowled-e-g-12-3-run-rate-required-run-rate-second-innings-current-batsmen-stats-runs-balls-4s-6s-strike-rate-current-bowler-stats-overs-maidens-runs-wickets-economy-and-a-ball-by-ball-over-timeline-provide-large-tap-friendly-buttons-to-record-each-delivery-run-values-0-6-extras-wide-no-ball-bye-leg-bye-and-wicket-include-an-undo-last-ball-action",
-      "title": "Build the main live scoring dashboard. It must display the current score (runs/wickets), overs bowled (e.g. 12.3), run rate, required run rate (second innings), current batsmen stats (runs, balls, 4s, 6s, strike rate), current bowler stats (overs, maidens, runs, wickets, economy), and a ball-by-ball over timeline. Provide large, tap-friendly buttons to record each delivery: run values (0–6), extras (wide, no-ball, bye, leg-bye), and wicket. Include an undo last ball action.",
-      "reqIds": [
-        "REQ-5"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-build-a-scorecard-screen-that-shows-the-full-batting-scorecard-each-batsman-s-runs-balls-4s-6s-strike-rate-dismissal-and-bowling-figures-overs-maidens-runs-wickets-economy-for-both-innings-of-the-current-match-allow-navigation-between-innings",
-      "title": "Build a scorecard screen that shows the full batting scorecard (each batsman's runs, balls, 4s, 6s, strike rate, dismissal) and bowling figures (overs, maidens, runs, wickets, economy) for both innings of the current match. Allow navigation between innings.",
-      "reqIds": [
-        "REQ-6"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-build-a-match-history-screen-listing-all-completed-and-in-progress-matches-with-key-details-teams-result-date-tapping-a-match-opens-its-full-scorecard-in-read-only-mode-include-a-delete-match-option",
-      "title": "Build a match history screen listing all completed and in-progress matches with key details (teams, result, date). Tapping a match opens its full scorecard in read-only mode. Include a delete match option.",
-      "reqIds": [
-        "REQ-7"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-build-a-cricket-rules-reference-section-within-the-app-it-must-cover-scoring-runs-boundaries-sixes-extras-wide-no-ball-bye-leg-bye-dismissal-types-bowled-caught-run-out-lbw-stumped-hit-wicket-handled-ball-obstructing-the-field-powerplay-rules-free-hit-rule-and-duckworth-lewis-concept-present-rules-in-a-searchable-categorized-accordion-list-layout",
-      "title": "Build a cricket rules reference section within the app. It must cover: scoring (runs, boundaries, sixes), extras (wide, no-ball, bye, leg-bye), dismissal types (bowled, caught, run-out, LBW, stumped, hit-wicket, handled ball, obstructing the field), powerplay rules, free-hit rule, and Duckworth-Lewis concept. Present rules in a searchable, categorized accordion/list layout.",
-      "reqIds": [
-        "REQ-8"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-apply-a-cohesive-visual-theme-throughout-the-app-use-a-deep-cricket-green-and-cream-off-white-palette-with-bold-serif-inspired-headings-and-clean-sans-serif-body-text-the-layout-should-feel-like-a-professional-stadium-scoreboard-high-contrast-compact-data-density-on-the-scoring-dashboard-and-spacious-card-layouts-elsewhere-navigation-should-use-a-bottom-tab-bar-with-icons-for-match-live-scoring-scorecard-history-teams-and-rules",
-      "title": "Apply a cohesive visual theme throughout the app. Use a deep cricket-green and cream/off-white palette with bold serif-inspired headings and clean sans-serif body text. The layout should feel like a professional stadium scoreboard: high contrast, compact data density on the scoring dashboard, and spacious card layouts elsewhere. Navigation should use a bottom tab bar with icons for: Match (live scoring), Scorecard, History, Teams, and Rules.",
-      "reqIds": [
-        "REQ-9"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-in-the-rules-page-duplicate-the-existing-cricket-rules-content-into-a-new-tournament-rules-tab-section-alongside-the-current-standard-rules-tab-the-tournament-rules-section-must-display-all-the-tournament-specific-rules-provided-by-the-user-as-static-categorized-searchable-accordion-entries-covering-match-format-structure-10-matches-total-4-league-2-knockout-3-semi-finals-1-final-qualification-criteria-nrr-formula-boundaries-count-head-to-head-tie-breaker-rules-super-over-then-boundaries-powerplay-configuration-per-format-5-over-and-6-over-games-timeout-and-team-readiness-penalty-lbw-and-free-hit-rules-innings-duration-and-slow-over-rate-penalty-retired-hurt-rule-wide-no-ball-bowler-change-rule-max-balls-per-batsman-max-overs-per-bowler-bouncer-limit-per-over-and-general-compliance-rules",
-      "title": "In the Rules page, duplicate the existing cricket rules content into a new 'Tournament Rules' tab/section alongside the current 'Standard Rules' tab. The Tournament Rules section must display all the tournament-specific rules provided by the user as static, categorized, searchable accordion entries covering: match format structure (10 matches total: 4 league, 2 knockout, 3 semi-finals, 1 final), qualification criteria (NRR formula, boundaries count, head-to-head), tie-breaker rules (super over, then boundaries), powerplay configuration per format (5-over and 6-over games), timeout and team readiness penalty, LBW and free-hit rules, innings duration and slow over-rate penalty, retired hurt rule, wide/no-ball bowler change rule, max balls per batsman, max overs per bowler, bouncer limit per over, and general compliance rules.",
-      "reqIds": [
-        "REQ-10"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-configure-tournament-rules-settings-panel-or-modal-accessible-from-the-tournament-rules-section-this-form-must-allow-editing-all-configurable-tournament-parameters-stored-in-the-backend-total-matches-overs-per-format-league-final-powerplay-overs-max-fielders-outside-30-yards-during-powerplay-timeout-duration-team-readiness-penalty-thresholds-slow-over-rate-penalty-runs-innings-duration-limit-max-balls-per-batsman-by-format-max-overs-per-bowler-by-format-bouncer-limit-per-over-wide-no-ball-bowler-change-threshold-default-penalty-runs-and-toggles-for-lbw-and-free-hit-changes-must-be-saved-to-the-backend-via-updatetournamentrules-display-current-values-as-defaults-in-the-form",
-      "title": "Add a 'Configure Tournament Rules' settings panel or modal accessible from the Tournament Rules section. This form must allow editing all configurable tournament parameters stored in the backend: total matches, overs per format (league/final), powerplay overs, max fielders outside 30 yards during powerplay, timeout duration, team readiness penalty thresholds, slow over-rate penalty runs, innings duration limit, max balls per batsman by format, max overs per bowler by format, bouncer limit per over, wide/no-ball bowler change threshold, default penalty runs, and toggles for LBW and free-hit. Changes must be saved to the backend via updateTournamentRules(). Display current values as defaults in the form.",
-      "reqIds": [
-        "REQ-12"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-in-the-tournament-rules-display-section-render-the-rule-descriptions-dynamically-from-the-saved-backend-configuration-values-rather-than-hardcoded-strings-for-example-one-bowler-can-bowl-a-max-of-maxoversbowlershortformat-overs-in-a-leagueovers-over-match-should-reflect-the-actual-stored-values-all-configurable-rule-statements-in-the-tournament-rules-section-must-update-when-the-configuration-is-changed",
-      "title": "In the Tournament Rules display section, render the rule descriptions dynamically from the saved backend configuration values rather than hardcoded strings. For example, 'One bowler can bowl a max of [maxOversBowlerShortFormat] overs in a [leagueOvers]-over match' should reflect the actual stored values. All configurable rule statements in the Tournament Rules section must update when the configuration is changed.",
-      "reqIds": [
-        "REQ-13"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-bulk-player-name-upload-feature-to-the-teams-page-users-must-be-able-to-paste-a-newline-separated-or-comma-separated-list-of-player-names-into-a-text-area-or-upload-a-plain-text-txt-or-csv-file-and-have-all-valid-names-added-as-players-to-the-selected-team-in-one-action-each-parsed-name-should-be-validated-non-empty-not-duplicate-within-the-team-team-does-not-exceed-11-players-show-a-preview-of-parsed-names-before-confirming-and-display-a-summary-of-how-many-players-were-added-or-skipped-with-reasons",
-      "title": "Add a bulk player name upload feature to the Teams page. Users must be able to paste a newline-separated or comma-separated list of player names into a text area, or upload a plain-text (.txt) or CSV file, and have all valid names added as players to the selected team in one action. Each parsed name should be validated (non-empty, not duplicate within the team, team does not exceed 11 players). Show a preview of parsed names before confirming, and display a summary of how many players were added or skipped with reasons.",
-      "reqIds": [
-        "REQ-14"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-retheme-the-entire-app-ui-from-the-current-cricket-green-cream-palette-to-a-professional-blue-and-orange-color-scheme-primary-backgrounds-and-headers-should-use-deep-navy-dark-blue-tones-accent-colors-highlights-active-states-buttons-and-key-data-values-should-use-bold-orange-neutral-surfaces-should-use-light-grey-white-update-tailwind-config-color-tokens-css-custom-properties-in-index-css-and-all-component-level-color-classes-teams-page-bottomtabnavigation-layout-header-scoring-dashboard-scorecard-match-history-match-setup-rules-page-and-modals-to-consistently-reflect-the-new-blue-and-orange-palette-typography-spacing-and-layout-density-should-be-refined-to-feel-more-professional-and-polished-clean-sans-serif-body-text-sharp-card-borders-elevated-shadows-and-well-defined-section-hierarchy",
-      "title": "Retheme the entire app UI from the current cricket-green/cream palette to a professional blue and orange color scheme. Primary backgrounds and headers should use deep navy/dark blue tones. Accent colors, highlights, active states, buttons, and key data values should use bold orange. Neutral surfaces should use light grey-white. Update Tailwind config color tokens, CSS custom properties in index.css, and all component-level color classes (Teams page, BottomTabNavigation, Layout header, scoring dashboard, scorecard, match history, match setup, rules page, and modals) to consistently reflect the new blue-and-orange palette. Typography, spacing, and layout density should be refined to feel more professional and polished — clean sans-serif body text, sharp card borders, elevated shadows, and well-defined section hierarchy.",
-      "reqIds": [
-        "REQ-15"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-fix-the-team-selection-validation-logic-in-the-match-setup-page-so-that-when-the-user-has-selected-one-team-for-team-a-batting-first-and-a-different-team-for-team-b-bowling-first-the-please-select-both-teams-error-no-longer-appears-and-the-start-match-button-proceeds-correctly-the-bug-is-visible-in-the-screenshot-sanki-achivers-is-selected-for-batting-and-pagal-warriors-is-selected-for-bowling-yet-the-error-still-shows-audit-the-state-variables-tracking-the-selected-batting-and-bowling-team-ids-ensure-the-validation-condition-checks-that-both-values-are-non-null-non-undefined-and-not-equal-to-each-other-and-remove-any-incorrect-guard-that-treats-the-current-state-as-incomplete-when-both-teams-are-in-fact-selected",
-      "title": "Fix the team selection validation logic in the Match Setup page so that when the user has selected one team for 'Team A (Batting First)' and a different team for 'Team B (Bowling First)', the 'Please select both teams' error no longer appears and the 'Start Match' button proceeds correctly. The bug is visible in the screenshot: 'Sanki Achivers' is selected for batting and 'Pagal Warriors' is selected for bowling, yet the error still shows. Audit the state variables tracking the selected batting and bowling team IDs, ensure the validation condition checks that both values are non-null/non-undefined and not equal to each other, and remove any incorrect guard that treats the current state as incomplete when both teams are in fact selected.",
-      "reqIds": [
-        "REQ-16"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-select-playing-11-step-to-the-match-setup-page-after-both-teams-are-chosen-and-before-the-toss-opening-player-selection-display-each-team-s-full-squad-as-a-checklist-the-user-must-select-exactly-11-players-from-each-team-s-squad-to-form-the-playing-lineup-only-the-selected-11-players-per-team-should-be-available-for-selection-as-openers-batsmen-and-bowlers-throughout-match-setup-and-live-scoring-enforce-that-exactly-11-players-are-selected-per-team-before-allowing-the-match-to-proceed-and-show-a-clear-count-indicator-e-g-9-11-selected-per-team",
-      "title": "Add a 'Select Playing 11' step to the Match Setup page. After both teams are chosen and before the toss/opening player selection, display each team's full squad as a checklist. The user must select exactly 11 players from each team's squad to form the playing lineup. Only the selected 11 players per team should be available for selection as openers, batsmen, and bowlers throughout match setup and live scoring. Enforce that exactly 11 players are selected per team before allowing the match to proceed, and show a clear count indicator (e.g., '9 / 11 selected') per team.",
-      "reqIds": [
-        "REQ-19"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-fix-the-internet-identity-login-flow-so-that-the-login-button-triggers-authentication-correctly-the-identity-is-properly-established-and-the-user-is-able-to-authenticate-and-access-the-app-without-errors-audit-the-useinternetidentity-hook-integration-the-login-call-in-the-ui-and-any-actor-initialization-that-depends-on-the-authenticated-identity-to-ensure-login-completes-successfully-end-to-end",
-      "title": "Fix the Internet Identity login flow so that the login button triggers authentication correctly, the identity is properly established, and the user is able to authenticate and access the app without errors. Audit the useInternetIdentity hook integration, the login call in the UI, and any actor initialization that depends on the authenticated identity to ensure login completes successfully end-to-end.",
-      "reqIds": [
-        "REQ-20"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-perform-a-comprehensive-ui-polish-pass-across-all-pages-and-components-fix-visual-inconsistencies-broken-layouts-illegible-text-misaligned-elements-and-poor-spacing-ensure-the-blue-and-orange-theme-is-applied-consistently-across-every-screen-live-scoring-match-setup-scorecard-match-history-teams-rules-and-layout-header-footer-improve-readability-with-proper-contrast-ratios-consistent-font-sizing-hierarchy-adequate-padding-margins-on-cards-and-sections-and-clear-visual-separation-between-interactive-and-informational-elements-all-tap-click-targets-must-be-appropriately-sized-and-clearly-styled-as-interactive",
-      "title": "Perform a comprehensive UI polish pass across all pages and components. Fix visual inconsistencies, broken layouts, illegible text, misaligned elements, and poor spacing. Ensure the blue-and-orange theme is applied consistently across every screen (Live Scoring, Match Setup, Scorecard, Match History, Teams, Rules, and Layout/header/footer). Improve readability with proper contrast ratios, consistent font sizing hierarchy, adequate padding/margins on cards and sections, and clear visual separation between interactive and informational elements. All tap/click targets must be appropriately sized and clearly styled as interactive.",
-      "reqIds": [
-        "REQ-21"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-add-a-reset-all-data-button-to-the-app-accessible-from-the-settings-or-match-history-page-or-a-clearly-accessible-location-in-the-navigation-header-tapping-the-button-must-show-a-confirmation-dialog-warning-the-user-that-all-matches-teams-players-and-scores-will-be-permanently-deleted-on-confirmation-call-the-backend-resetalldata-function-clear-all-localstorage-matchstore-data-stored-matches-live-match-state-match-metadata-invalidate-all-react-query-caches-and-navigate-the-user-to-the-home-match-history-screen-the-button-must-be-styled-destructively-e-g-red-or-clearly-danger-styled-and-the-confirmation-dialog-must-require-an-explicit-confirm-action-before-proceeding",
-      "title": "Add a 'Reset All Data' button to the app, accessible from the Settings or Match History page (or a clearly accessible location in the navigation/header). Tapping the button must show a confirmation dialog warning the user that all matches, teams, players, and scores will be permanently deleted. On confirmation, call the backend `resetAllData()` function, clear all localStorage/matchStore data (stored matches, live match state, match metadata), invalidate all React Query caches, and navigate the user to the home/match-history screen. The button must be styled destructively (e.g., red or clearly danger-styled) and the confirmation dialog must require an explicit confirm action before proceeding.",
-      "reqIds": [
-        "REQ-23"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-ensure-the-bulk-add-players-button-is-visible-and-functional-on-the-teams-page-the-button-must-open-the-bulkplayeruploadmodal-component-which-allows-users-to-paste-a-newline-separated-or-comma-separated-list-of-player-names-or-upload-a-txt-csv-file-validates-each-name-non-empty-not-duplicate-within-the-team-shows-a-preview-of-parsed-names-and-adds-all-valid-players-to-the-selected-team-in-one-action-with-a-summary-of-how-many-were-added-or-skipped-and-why",
-      "title": "Ensure the 'Bulk Add Players' button is visible and functional on the Teams page. The button must open the BulkPlayerUploadModal component, which allows users to paste a newline-separated or comma-separated list of player names (or upload a .txt/.csv file), validates each name (non-empty, not duplicate within the team), shows a preview of parsed names, and adds all valid players to the selected team in one action with a summary of how many were added or skipped and why.",
-      "reqIds": [
-        "REQ-24"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-in-the-match-setup-page-openers-step-replace-the-free-text-input-fields-for-opening-striker-opening-non-striker-and-opening-bowler-with-dropdown-selects-the-opening-striker-and-opening-non-striker-dropdowns-must-be-populated-exclusively-from-the-11-players-selected-in-the-select-playing-11-step-for-the-batting-team-the-opening-bowler-dropdown-must-be-populated-exclusively-from-the-11-players-selected-for-the-bowling-team-no-player-from-outside-the-selected-playing-11-of-the-respective-team-should-appear-in-any-of-these-dropdowns",
-      "title": "In the Match Setup page 'Openers' step, replace the free-text input fields for Opening Striker, Opening Non-Striker, and Opening Bowler with dropdown selects. The Opening Striker and Opening Non-Striker dropdowns must be populated exclusively from the 11 players selected in the 'Select Playing 11' step for the batting team. The Opening Bowler dropdown must be populated exclusively from the 11 players selected for the bowling team. No player from outside the selected playing 11 of the respective team should appear in any of these dropdowns.",
-      "reqIds": [
-        "REQ-25"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-diagnose-and-fix-the-teams-page-frontend-src-pages-teams-tsx-so-that-it-loads-and-renders-correctly-investigate-potential-causes-including-query-errors-or-unhandled-promise-rejections-in-the-useteams-or-useplayers-react-query-hooks-runtime-errors-thrown-during-component-render-e-g-accessing-properties-on-undefined-null-data-before-it-has-loaded-broken-imports-or-missing-component-dependencies-and-any-conditional-rendering-logic-that-incorrectly-prevents-the-page-content-from-displaying-ensure-the-teams-page-opens-successfully-displays-existing-teams-and-allows-creating-new-teams-and-adding-players-without-crashing-or-remaining-blank",
-      "title": "Diagnose and fix the Teams page (frontend/src/pages/Teams.tsx) so that it loads and renders correctly. Investigate potential causes including: query errors or unhandled promise rejections in the useTeams or usePlayers React Query hooks, runtime errors thrown during component render (e.g. accessing properties on undefined/null data before it has loaded), broken imports or missing component dependencies, and any conditional rendering logic that incorrectly prevents the page content from displaying. Ensure the Teams page opens successfully, displays existing teams, and allows creating new teams and adding players without crashing or remaining blank.",
-      "reqIds": [
-        "REQ-26"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-diagnose-and-fix-the-start-match-button-on-the-openers-step-of-the-matchsetup-page-frontend-src-pages-matchsetup-tsx-so-that-clicking-it-successfully-creates-the-match-via-the-backend-and-navigates-the-user-to-the-livescoring-page-the-screenshot-confirms-all-required-fields-are-filled-opening-striker-sandeep-goswami-vice-captain-opening-non-striker-pradyumn-vashishtha-opening-bowler-satya-ranjan-ojha-yet-the-button-does-nothing-audit-the-button-s-onclick-handler-and-the-creatematch-mutation-call-check-that-the-mutation-is-invoked-with-correctly-shaped-arguments-team-ids-player-ids-innings-config-overs-playing-11-arrays-that-the-mutation-s-onsuccess-callback-reads-the-returned-match-id-and-navigates-to-the-live-scoring-route-and-that-no-silent-error-or-unhandled-promise-rejection-is-swallowing-the-result-ensure-the-button-is-not-inadvertently-disabled-when-all-fields-are-valid-fix-any-mismatch-between-the-data-shape-expected-by-the-backend-creatematch-function-and-what-the-frontend-is-passing",
-      "title": "Diagnose and fix the 'Start Match' button on the Openers step of the MatchSetup page (frontend/src/pages/MatchSetup.tsx) so that clicking it successfully creates the match via the backend and navigates the user to the LiveScoring page. The screenshot confirms all required fields are filled (Opening Striker: Sandeep Goswami(Vice Captain), Opening Non-Striker: Pradyumn Vashishtha, Opening Bowler: Satya Ranjan Ojha) yet the button does nothing. Audit the button's onClick handler and the createMatch mutation call: check that the mutation is invoked with correctly shaped arguments (team IDs, player IDs, innings config, overs, playing 11 arrays), that the mutation's onSuccess callback reads the returned match ID and navigates to the live scoring route, and that no silent error or unhandled promise rejection is swallowing the result. Ensure the button is not inadvertently disabled when all fields are valid. Fix any mismatch between the data shape expected by the backend createMatch function and what the frontend is passing.",
-      "reqIds": [
-        "REQ-27"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-audit-and-fix-the-tanstack-router-configuration-in-frontend-src-app-tsx-to-ensure-all-registered-routes-home-matchhistory-teams-matchsetup-livescoring-scorecard-rules-render-their-page-components-correctly-when-navigated-to-investigate-and-resolve-any-broken-route-definitions-missing-lazy-imports-incorrect-path-parameters-or-misconfigured-route-trees-that-would-cause-pages-to-appear-blank-or-fail-to-mount",
-      "title": "Audit and fix the TanStack Router configuration in frontend/src/App.tsx to ensure all registered routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) render their page components correctly when navigated to. Investigate and resolve any broken route definitions, missing lazy imports, incorrect path parameters, or misconfigured route trees that would cause pages to appear blank or fail to mount.",
-      "reqIds": [
-        "REQ-28"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-audit-all-page-level-components-teams-tsx-matchsetup-tsx-matchhistory-tsx-livescoring-tsx-scorecard-tsx-rules-tsx-for-runtime-errors-that-prevent-rendering-fix-any-issues-including-undefined-null-data-access-before-react-query-results-have-loaded-add-proper-loading-and-error-guards-broken-or-circular-imports-missing-default-exports-and-any-top-level-exceptions-thrown-during-component-initialization-each-page-must-render-a-visible-loading-state-while-data-is-being-fetched-and-must-not-crash-or-display-a-blank-screen",
-      "title": "Audit all page-level components (Teams.tsx, MatchSetup.tsx, MatchHistory.tsx, LiveScoring.tsx, Scorecard.tsx, Rules.tsx) for runtime errors that prevent rendering. Fix any issues including: undefined/null data access before React Query results have loaded (add proper loading and error guards), broken or circular imports, missing default exports, and any top-level exceptions thrown during component initialization. Each page must render a visible loading state while data is being fetched and must not crash or display a blank screen.",
-      "reqIds": [
-        "REQ-29"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-audit-the-useactor-hook-frontend-src-hooks-useactor-ts-and-the-usequeries-hooks-frontend-src-hooks-usequeries-ts-to-ensure-the-backend-actor-is-initialized-correctly-even-when-the-user-is-not-authenticated-any-query-or-mutation-that-attempts-to-call-actor-methods-before-the-actor-is-ready-must-handle-the-uninitialized-state-gracefully-e-g-by-keeping-query-enabled-flags-false-until-the-actor-is-available-rather-than-throwing-errors-that-propagate-and-break-page-rendering",
-      "title": "Audit the useActor hook (frontend/src/hooks/useActor.ts) and the useQueries hooks (frontend/src/hooks/useQueries.ts) to ensure the backend actor is initialized correctly even when the user is not authenticated. Any query or mutation that attempts to call actor methods before the actor is ready must handle the uninitialized state gracefully (e.g., by keeping query enabled flags false until the actor is available) rather than throwing errors that propagate and break page rendering.",
-      "reqIds": [
-        "REQ-30"
-      ],
-      "version": 1
-    },
-    {
-      "id": "feature-audit-the-layout-component-frontend-src-components-layout-tsx-and-the-bottomtabnavigation-component-frontend-src-components-bottomtabnavigation-tsx-to-ensure-the-router-outlet-renders-child-page-content-correctly-verify-the-outlet-component-from-tanstack-router-is-placed-correctly-inside-the-layout-that-no-conditional-logic-inadvertently-hides-the-outlet-or-replaces-it-with-an-empty-fragment-and-that-the-bottom-tab-navigation-links-use-the-correct-href-to-values-matching-the-defined-routes-in-app-tsx",
-      "title": "Audit the Layout component (frontend/src/components/Layout.tsx) and the BottomTabNavigation component (frontend/src/components/BottomTabNavigation.tsx) to ensure the router outlet renders child page content correctly. Verify the Outlet component from TanStack Router is placed correctly inside the Layout, that no conditional logic inadvertently hides the outlet or replaces it with an empty fragment, and that the bottom tab navigation links use the correct href/to values matching the defined routes in App.tsx.",
-      "reqIds": [
-        "REQ-31"
+        "REQ-1"
       ],
       "version": 1
     }
   ],
   "new_feature_requests": [
     {
-      "id": "AR-1",
-      "summary": "Main scoring dashboard for live match scoring",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
       "id": "AR-2",
-      "summary": "Dynamic rule modification during gameplay (overs, players, scoring methods)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-3",
-      "summary": "Team and player customization options",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-4",
-      "summary": "Cricket rule reference section within the app",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-5",
-      "summary": "Offline-first data storage and retrieval (no internet required)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-6",
-      "summary": "Create a backend data model and actor to manage matches, teams, players, innings, overs, and ball-by-ball scoring events. The actor must support creating a new match (with configurable overs limit, teams, and player rosters), recording each ball delivery (runs scored, extras: wide/no-ball/bye/leg-bye, wicket type), and updating match state accordingly. All data must be persisted in stable storage so it survives canister upgrades.",
-      "reqIds": [
-        "REQ-1"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-7",
-      "summary": "Implement backend functions for team and player customization: add/edit/remove teams (name, color, logo text), add/edit/remove players per team (name, batting order, bowling role). Support saving multiple pre-configured teams for reuse across matches.",
+      "summary": "Ensure the backend Motoko actor in backend/main.mo compiles and is deployable without errors so the canister can be started and resume handling calls such as getAllTeams. Review the actor for any syntax errors, invalid stable variable declarations, or upgrade traps that could cause the canister to remain in a stopped state.",
       "reqIds": [
         "REQ-2"
       ],
       "status": "pending"
-    },
-    {
-      "id": "AR-8",
-      "summary": "Implement dynamic match rule modification: allow changes to the over limit, powerplay over ranges, Duckworth-Lewis target adjustment (manual target override), maximum overs per bowler, and free-hit rule toggle — both before and during a live match. These rule parameters must be stored alongside the match record.",
-      "reqIds": [
-        "REQ-3"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-9",
-      "summary": "Add a Tournament Rules section: copy existing rules and add a fully configurable tournament ruleset covering match format (league/knockout/semi-final/final structure), qualification criteria (NRR, boundaries, head-to-head), tie-breaker rules (super over, boundaries), powerplay configuration, timeout/penalty rules, LBW/free-hit toggles, innings duration limits, slow over-rate penalty, retired hurt rule, wide/no-ball bowler change rule, max balls per batsman, max overs per bowler, bouncer limit, and team readiness penalty.",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-11",
-      "summary": "Add a backend data model and storage for tournament rule configurations. Create a TournamentRules stable record type in main.mo that stores all configurable tournament parameters: totalMatches (Nat), numTeams (Nat), leagueMatches (Nat), knockoutMatches (Nat), semifinalMatches (Nat), finalMatches (Nat), leagueOvers (Nat), finalOvers (Nat), leaguePowerplayOvers (Nat), finalPowerplayOvers (Nat), maxFieldersOutside30Yards (Nat), timeoutDurationSeconds (Nat), teamReadinessPenaltyMinutes (Nat), teamReadinessPenaltyOvers (Nat), slowOverRatePenaltyRuns (Nat), inningsDurationMinutes (Nat), maxBallsPerBatsmanShortFormat (Nat), maxBallsPerBatsmanLongFormat (Nat), maxOversBowlerShortFormat (Nat), maxOversBowlerLongFormat (Nat), bouncerLimitPerOver (Nat), widesNoBallBowlerChangeThreshold (Nat), defaultPenaltyRuns (Nat), lbwApplicable (Bool), freeHitApplicable (Bool). Expose getTournamentRules() and updateTournamentRules(rules: TournamentRules) functions.",
-      "reqIds": [
-        "REQ-11"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-12",
-      "summary": "Add bulk name upload option for teams (e.g., paste or upload a list of player names at once)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-13",
-      "summary": "Change app UI color theme to blue and orange with a more professional look",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-14",
-      "summary": "Allow teams to have more than 11 players in their roster. Before a match starts, the user selects the playing 11 from the full squad. Scoring and match setup use only the selected playing 11.",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-15",
-      "summary": "Remove the 11-player cap on team rosters in the backend. Update the Player/Team data model and any addPlayer or validation logic in main.mo so that a team can hold an unlimited number of players (squad size). Existing match logic must continue to work with exactly 11 players per side during a match — the squad size cap removal applies only to the team roster, not the playing lineup.",
-      "reqIds": [
-        "REQ-17"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-16",
-      "summary": "Remove the 11-player hard cap from the Teams page UI and the BulkPlayerUploadModal component. Individual add-player forms and bulk upload flows must no longer reject or skip players solely because the team already has 11 members. Update validation messages and skip-reason labels accordingly so users can build squads larger than 11.",
-      "reqIds": [
-        "REQ-18"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-17",
-      "summary": "Add a reset button to clear/remove all app data (matches, teams, players, scores, etc.)",
-      "reqIds": [],
-      "status": "pending"
-    },
-    {
-      "id": "AR-18",
-      "summary": "Add a backend function `resetAllData()` in `backend/main.mo` that clears all persistent stable stores: teams, players, matches, innings, deliveries, and tournament rules (resetting tournament rules to defaults). This function must wipe all stored data and reset auto-incrementing ID counters to their initial values.",
-      "reqIds": [
-        "REQ-22"
-      ],
-      "status": "pending"
-    },
-    {
-      "id": "AR-19",
-      "summary": "In match setup, the opener batsmen and opening bowler dropdowns must be populated only from the 11 players selected in the 'Select Playing 11' step for their respective teams, not from the full squad.",
-      "reqIds": [],
-      "status": "pending"
     }
   ],
-  "gameProjectType": "none",
-  "projectName": "Cricket Scoring App",
+  "projectName": "Fix canister stopped error causing getAllTeams failure",
   "clarification_mode": "instant",
   "clarification_rounds": 0
 }

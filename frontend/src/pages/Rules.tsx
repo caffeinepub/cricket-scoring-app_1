@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { BookOpen, Settings, AlertCircle, Loader2 } from "lucide-react";
+import { BookOpen, Settings, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Accordion,
   AccordionContent,
@@ -15,6 +14,7 @@ import {
 import { useTournamentRules } from "@/hooks/useQueries";
 import ConfigureTournamentRulesModal from "@/components/ConfigureTournamentRulesModal";
 import { cricketRules, getTournamentRules } from "@/data/cricketRules";
+import QueryErrorState from "@/components/QueryErrorState";
 import type { CricketRuleCategory } from "@/data/cricketRules";
 
 export default function Rules() {
@@ -24,6 +24,7 @@ export default function Rules() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useTournamentRules();
 
   const tournamentRuleCategories: CricketRuleCategory[] = tournamentRules
@@ -103,13 +104,11 @@ export default function Rules() {
               ))}
             </div>
           ) : isError ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Failed to load tournament rules:{" "}
-                {error instanceof Error ? error.message : "Unknown error"}
-              </AlertDescription>
-            </Alert>
+            <QueryErrorState
+              error={error}
+              title="Failed to load tournament rules"
+              onRetry={() => refetch()}
+            />
           ) : tournamentRuleCategories.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center">
