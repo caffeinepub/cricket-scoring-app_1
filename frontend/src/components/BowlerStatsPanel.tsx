@@ -1,69 +1,69 @@
-import { Player } from "@/backend";
+import type { Player } from "../backend";
 
 interface BowlerStats {
   playerId: bigint;
-  overs: number;
-  balls: number;
-  maidens: number;
   runs: number;
   wickets: number;
+  balls: number;
+  maidens: number;
 }
 
 interface BowlerStatsPanelProps {
-  bowler: BowlerStats | null;
+  bowlerId: bigint;
+  bowlerStats: BowlerStats;
   players: Player[];
+  allPlayers?: Player[];
 }
 
-function getPlayerName(players: Player[], id: bigint): string {
-  return players.find((p) => p.id === id)?.name ?? "Unknown";
-}
-
-function calcEconomy(runs: number, overs: number, balls: number): string {
-  const totalOvers = overs + balls / 6;
-  if (totalOvers === 0) return "0.00";
-  return (runs / totalOvers).toFixed(2);
-}
-
-export default function BowlerStatsPanel({ bowler, players }: BowlerStatsPanelProps) {
-  if (!bowler) {
-    return (
-      <div className="cricket-card p-3">
-        <p className="text-muted-foreground text-sm text-center">No bowler selected</p>
-      </div>
-    );
+function getPlayerName(players: Player[], id: bigint, fallback?: Player[]): string {
+  const p = players.find((p) => p.id === id);
+  if (p) return p.name;
+  if (fallback) {
+    const fb = fallback.find((p) => p.id === id);
+    if (fb) return fb.name;
   }
+  return "Unknown";
+}
 
-  const name = getPlayerName(players, bowler.playerId);
-  const economy = calcEconomy(bowler.runs, bowler.overs, bowler.balls);
+export default function BowlerStatsPanel({
+  bowlerId,
+  bowlerStats,
+  players,
+  allPlayers,
+}: BowlerStatsPanelProps) {
+  const bowlerName = getPlayerName(players, bowlerId, allPlayers);
+  const overs = `${Math.floor(bowlerStats.balls / 6)}.${bowlerStats.balls % 6}`;
+  const economy =
+    bowlerStats.balls > 0
+      ? ((bowlerStats.runs / bowlerStats.balls) * 6).toFixed(2)
+      : "0.00";
 
   return (
-    <div className="cricket-card p-3">
-      <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+    <div className="bg-card rounded-xl p-4 border border-border">
+      <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground mb-2">
         Bowler
       </h3>
       <div className="flex items-center justify-between">
         <div>
-          <p className="font-semibold text-sm">{name}</p>
-          <p className="text-muted-foreground text-xs mt-0.5">
-            {bowler.overs}.{bowler.balls} ov
-          </p>
+          <p className="font-semibold">{bowlerName}</p>
+          <p className="text-xs text-muted-foreground">{overs} ov</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 text-sm">
           <div className="text-center">
-            <p className="text-[10px] text-muted-foreground">R</p>
-            <p className="text-sm font-bold">{bowler.runs}</p>
+            <p className="text-xs text-muted-foreground">R</p>
+            <p className="font-semibold">{bowlerStats.runs}</p>
           </div>
           <div className="text-center">
-            <p className="text-[10px] text-muted-foreground">W</p>
-            <p className="text-sm font-bold text-[oklch(0.65_0.18_45)]">{bowler.wickets}</p>
+            <p className="text-xs text-muted-foreground">W</p>
+            <p className="font-semibold text-destructive">{bowlerStats.wickets}</p>
           </div>
           <div className="text-center">
-            <p className="text-[10px] text-muted-foreground">Eco</p>
-            <p className="text-sm font-bold">{economy}</p>
+            <p className="text-xs text-muted-foreground">Eco</p>
+            <p className="font-semibold">{economy}</p>
           </div>
           <div className="text-center">
-            <p className="text-[10px] text-muted-foreground">M</p>
-            <p className="text-sm font-bold">{bowler.maidens}</p>
+            <p className="text-xs text-muted-foreground">M</p>
+            <p className="font-semibold">{bowlerStats.maidens}</p>
           </div>
         </div>
       </div>

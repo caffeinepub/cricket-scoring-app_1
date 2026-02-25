@@ -1,148 +1,147 @@
-import { useState, useEffect } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
-  DialogOverlay,
-  DialogPortal,
-} from '@/components/ui/dialog';
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
-import type { WicketType, Player } from '@/backend';
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import type { Delivery, Player, WicketType } from "../backend";
 
 interface WicketModalProps {
-  open: boolean;
+  isOpen: boolean;
   onClose: () => void;
-  onConfirm: (wicketType: WicketType, nextBatsmanId: bigint) => void;
   dismissedBatsmanId: bigint;
-  battingTeamPlayers: bigint[];
+  battingTeamPlayers: Player[];
   allPlayers: Player[];
-  isLoading?: boolean;
+  availableBatsmen?: Player[];
+  onConfirm: (
+    dismissedId: bigint,
+    newBatsmanId: bigint,
+    wicketType: Delivery["wicket"]
+  ) => void;
 }
 
-const WICKET_TYPES: { value: WicketType['__kind__']; label: string }[] = [
-  { value: 'Bowled', label: 'Bowled' },
-  { value: 'Caught', label: 'Caught' },
-  { value: 'LBW', label: 'LBW' },
-  { value: 'RunOut', label: 'Run Out' },
-  { value: 'Stumped', label: 'Stumped' },
-  { value: 'HitWicket', label: 'Hit Wicket' },
+const WICKET_TYPES = [
+  { label: "Bowled", value: "Bowled" },
+  { label: "Caught", value: "Caught" },
+  { label: "LBW", value: "LBW" },
+  { label: "Run Out", value: "RunOut" },
+  { label: "Stumped", value: "Stumped" },
+  { label: "Hit Wicket", value: "HitWicket" },
 ];
 
-function makeWicketType(kind: WicketType['__kind__']): WicketType {
-  switch (kind) {
-    case 'Bowled': return { __kind__: 'Bowled', Bowled: null };
-    case 'Caught': return { __kind__: 'Caught', Caught: null };
-    case 'LBW': return { __kind__: 'LBW', LBW: null };
-    case 'RunOut': return { __kind__: 'RunOut', RunOut: null };
-    case 'Stumped': return { __kind__: 'Stumped', Stumped: null };
-    case 'HitWicket': return { __kind__: 'HitWicket', HitWicket: null };
-    default: return { __kind__: 'Other', Other: 'Unknown' };
+function buildWicketType(value: string): WicketType {
+  switch (value) {
+    case "Bowled":
+      return { __kind__: "Bowled", Bowled: null };
+    case "Caught":
+      return { __kind__: "Caught", Caught: null };
+    case "LBW":
+      return { __kind__: "LBW", LBW: null };
+    case "RunOut":
+      return { __kind__: "RunOut", RunOut: null };
+    case "Stumped":
+      return { __kind__: "Stumped", Stumped: null };
+    case "HitWicket":
+      return { __kind__: "HitWicket", HitWicket: null };
+    default:
+      return { __kind__: "Other", Other: value };
   }
 }
 
 export default function WicketModal({
-  open,
+  isOpen,
   onClose,
-  onConfirm,
   dismissedBatsmanId,
   battingTeamPlayers,
   allPlayers,
-  isLoading = false,
+  availableBatsmen,
+  onConfirm,
 }: WicketModalProps) {
-  const [wicketKind, setWicketKind] = useState<WicketType['__kind__']>('Bowled');
-  const [nextBatsmanId, setNextBatsmanId] = useState<string>('');
+  const [wicketType, setWicketType] = useState<string>("");
+  const [newBatsman, setNewBatsman] = useState<string>("");
 
-  useEffect(() => {
-    if (open) {
-      setWicketKind('Bowled');
-      setNextBatsmanId('');
-    }
-  }, [open]);
-
-  const availableBatsmen = allPlayers.filter(
-    p => battingTeamPlayers.includes(p.id) && p.id !== dismissedBatsmanId
-  );
+  const batsmanList = availableBatsmen ?? battingTeamPlayers;
+  const dismissedName =
+    allPlayers.find((p) => p.id === dismissedBatsmanId)?.name ?? "Unknown";
 
   const handleConfirm = () => {
-    if (!nextBatsmanId) return;
-    onConfirm(makeWicketType(wicketKind), BigInt(nextBatsmanId));
+    if (!wicketType || !newBatsman) return;
+    onConfirm(
+      dismissedBatsmanId,
+      BigInt(newBatsman),
+      buildWicketType(wicketType)
+    );
+    setWicketType("");
+    setNewBatsman("");
   };
 
   return (
-    <Dialog open={open} onOpenChange={o => !o && onClose()}>
-      <DialogPortal>
-        <DialogOverlay className="bg-black/60 backdrop-blur-sm" />
-        <DialogContent className="bg-background border border-border shadow-xl sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-foreground font-display text-lg">Wicket!</DialogTitle>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Wicket!</DialogTitle>
+          <DialogDescription>
+            {dismissedName} is out. Select dismissal type and next batsman.
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">Wicket Type</Label>
-              <Select value={wicketKind} onValueChange={v => setWicketKind(v as WicketType['__kind__'])}>
-                <SelectTrigger className="bg-background border-border text-foreground w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {WICKET_TYPES.map(wt => (
-                    <SelectItem key={wt.value} value={wt.value} className="text-foreground">
-                      {wt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">Next Batsman</Label>
-              <Select value={nextBatsmanId} onValueChange={setNextBatsmanId}>
-                <SelectTrigger className="bg-background border-border text-foreground w-full">
-                  <SelectValue placeholder="Select next batsman" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {availableBatsmen.length === 0 ? (
-                    <SelectItem value="none" disabled className="text-foreground">
-                      No more batsmen
-                    </SelectItem>
-                  ) : (
-                    availableBatsmen.map(p => (
-                      <SelectItem key={String(p.id)} value={String(p.id)} className="text-foreground">
-                        {p.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>
+              Dismissal Type: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={wicketType} onValueChange={setWicketType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select dismissal type..." />
+              </SelectTrigger>
+              <SelectContent>
+                {WICKET_TYPES.map((wt) => (
+                  <SelectItem key={wt.value} value={wt.value}>
+                    {wt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={onClose} disabled={isLoading} className="flex-1">
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={!nextBatsmanId || isLoading || availableBatsmen.length === 0}
-              className="flex-1 bg-destructive hover:bg-destructive/90 text-white"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-              Confirm Wicket
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </DialogPortal>
+          <div className="space-y-2">
+            <Label>
+              Next Batsman: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={newBatsman} onValueChange={setNewBatsman}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select next batsman..." />
+              </SelectTrigger>
+              <SelectContent>
+                {batsmanList.map((p) => (
+                  <SelectItem key={p.id.toString()} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={handleConfirm}
+            disabled={!wicketType || !newBatsman}
+          >
+            Confirm Wicket
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

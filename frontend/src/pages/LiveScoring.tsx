@@ -1,511 +1,727 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, RotateCcw, Trophy, ArrowLeftRight, AlertCircle } from 'lucide-react';
-import { useMatchState } from '@/hooks/useMatchState';
-import { useGetDeliveriesByInnings, useRecordDelivery, useGetAllTeams, useGetMatch } from '@/hooks/useQueries';
-import { getMatchMeta } from '@/lib/matchStore';
-import WicketModal from '@/components/WicketModal';
-import EndOfOverModal from '@/components/EndOfOverModal';
-import EndOfInningsModal from '@/components/EndOfInningsModal';
-import ScoreDisplay from '@/components/ScoreDisplay';
-import OverTimeline from '@/components/OverTimeline';
-import BatsmanStatsPanel from '@/components/BatsmanStatsPanel';
-import BowlerStatsPanel from '@/components/BowlerStatsPanel';
-import QueryErrorState from '@/components/QueryErrorState';
-import type { Delivery, WicketType, Player } from '@/backend';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams } from "@tanstack/react-router";
+import { useActor } from "../hooks/useActor";
+import {
+  useGetMatch,
+  useGetAllTeams,
+  useRecordDelivery,
+} from "../hooks/useQueries";
+import { getMatchMeta, getLocalMatchState, saveLocalMatchState } from "../lib/matchStore";
+import ScoreDisplay from "../components/ScoreDisplay";
+import BatsmanStatsPanel from "../components/BatsmanStatsPanel";
+import BowlerStatsPanel from "../components/BowlerStatsPanel";
+import OverTimeline from "../components/OverTimeline";
+import EndOfOverModal from "../components/EndOfOverModal";
+import WicketModal from "../components/WicketModal";
+import EndOfInningsModal from "../components/EndOfInningsModal";
+import { Button } from "@/components/ui/button";
+import { Loader2, AlertCircle } from "lucide-react";
+import type { Delivery, Player } from "../backend";
 
-type DeliveryExtra = 'none' | 'wide' | 'noBall' | 'bye' | 'legBye';
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-function isLegalDelivery(d: Delivery): boolean {
-  return !d.isWide && !d.isNoBall;
+interface BatsmanStats {
+  playerId: bigint;
+  runs: number;
+  balls: number;
+  fours: number;
+  sixes: number;
 }
 
-function computeBatsmanStats(playerId: bigint, deliveries: Delivery[]) {
-  const faced = deliveries.filter(d => d.batsmanId === playerId && !d.isWide);
-  const runs = faced.reduce((s, d) => s + Number(d.runs), 0);
-  const balls = faced.filter(d => !d.isWide && !d.isNoBall).length;
-  const fours = faced.filter(d => Number(d.runs) === 4 && !d.isBye && !d.isLegBye).length;
-  const sixes = faced.filter(d => Number(d.runs) === 6 && !d.isBye && !d.isLegBye).length;
+interface BowlerStats {
+  playerId: bigint;
+  runs: number;
+  wickets: number;
+  balls: number;
+  maidens: number;
+}
+
+function computeBatsmanStats(
+  deliveries: Delivery[],
+  playerId: bigint
+): BatsmanStats {
+  let runs = 0,
+    balls = 0,
+    fours = 0,
+    sixes = 0;
+  for (const d of deliveries) {
+    if (d.batsmanId !== playerId) continue;
+    if (!d.isWide && !d.isNoBall) balls++;
+    if (!d.isWide) {
+      runs += Number(d.runs);
+      if (d.runs === 4n) fours++;
+      if (d.runs === 6n) sixes++;
+    }
+  }
   return { playerId, runs, balls, fours, sixes };
 }
 
-function computeBowlerStats(playerId: bigint, deliveries: Delivery[]) {
-  const bowled = deliveries.filter(d => d.bowlerId === playerId);
-  const legalBalls = bowled.filter(isLegalDelivery).length;
-  const overs = Math.floor(legalBalls / 6);
-  const balls = legalBalls % 6;
-  const runs = bowled.reduce((s, d) => {
-    if (d.isBye || d.isLegBye) return s;
-    return s + Number(d.runs) + (d.isWide ? 1 : 0) + (d.isNoBall ? 1 : 0);
-  }, 0);
-  const wickets = bowled.filter(d => d.wicket != null && d.wicket.__kind__ !== 'RunOut').length;
-  const maidens = 0;
-  return { playerId, overs, balls, maidens, runs, wickets };
+function computeBowlerStats(
+  deliveries: Delivery[],
+  playerId: bigint
+): BowlerStats {
+  let runs = 0,
+    wickets = 0,
+    balls = 0,
+    maidens = 0;
+  for (const d of deliveries) {
+    if (d.bowlerId !== playerId) continue;
+    if (!d.isWide && !d.isNoBall) balls++;
+    runs += Number(d.runs);
+    if (d.wicket && d.wicket.__kind__ !== "RunOut") wickets++;
+  }
+  return { playerId, runs, wickets, balls, maidens };
 }
 
+const EMPTY_BATSMAN_STATS: BatsmanStats = {
+  playerId: 0n,
+  runs: 0,
+  balls: 0,
+  fours: 0,
+  sixes: 0,
+};
+
+const EMPTY_BOWLER_STATS: BowlerStats = {
+  playerId: 0n,
+  runs: 0,
+  wickets: 0,
+  balls: 0,
+  maidens: 0,
+};
+
+// ─── component ──────────────────────────────────────────────────────────────
+
 export default function LiveScoring() {
-  const navigate = useNavigate();
+  const { matchId: matchIdParam } = useParams({ strict: false }) as {
+    matchId?: string;
+  };
 
-  const currentMatchId = localStorage.getItem('currentMatchId') ?? '';
-  const meta = currentMatchId ? getMatchMeta(currentMatchId) : null;
+  // matchId for backend calls must be bigint; for localStorage keys use string
+  const matchIdBigInt = matchIdParam ? BigInt(matchIdParam) : undefined;
+  const matchIdStr = matchIdParam ?? "";
 
-  const {
-    strikerId,
-    nonStrikerId,
-    bowlerId,
-    currentInnings,
-    isMatchOver,
-    matchResult,
-    setStrikerId,
-    setNonStrikerId,
-    setBowlerId,
-    swapBatsmen,
-    startNextInnings,
-    endMatch,
-  } = useMatchState();
+  const { actor } = useActor();
+  const { data: match, isLoading: matchLoading } = useGetMatch(matchIdBigInt ?? null);
+  const { data: allTeams = [], isLoading: teamsLoading } = useGetAllTeams();
 
-  const {
-    data: allTeams = [],
-    isError: teamsError,
-    error: teamsErrorObj,
-    refetch: refetchTeams,
-  } = useGetAllTeams();
+  // ── local state ──────────────────────────────────────────────────────────
+  const [strikerId, setStrikerId] = useState<bigint | null>(null);
+  const [nonStrikerId, setNonStrikerId] = useState<bigint | null>(null);
+  const [bowlerId, setBowlerId] = useState<bigint | null>(null);
+  const [currentInnings, setCurrentInnings] = useState<number>(1);
+  const [localDeliveries, setLocalDeliveries] = useState<Delivery[]>([]);
+  const [innings2Deliveries, setInnings2Deliveries] = useState<Delivery[]>([]);
+  const [showEndOfOver, setShowEndOfOver] = useState(false);
+  const [showWicket, setShowWicket] = useState(false);
+  const [showEndOfInnings, setShowEndOfInnings] = useState(false);
+  const [pendingWicketDelivery, setPendingWicketDelivery] =
+    useState<Partial<Delivery> | null>(null);
+  const [dismissedBatsmanId, setDismissedBatsmanId] = useState<bigint | null>(null);
+  const [matchResult, setMatchResult] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const {
-    data: match,
-    isError: matchError,
-    error: matchErrorObj,
-    refetch: refetchMatch,
-  } = useGetMatch(currentMatchId ? BigInt(currentMatchId) : null);
+  // Track the last over number that has already triggered the end-of-over modal
+  // to prevent the modal from re-opening after the bowler is confirmed.
+  const lastHandledOverRef = useRef<number>(-1);
 
-  const {
-    data: deliveries = [],
-    isError: deliveriesError,
-    error: deliveriesErrorObj,
-    refetch: refetchDeliveries,
-  } = useGetDeliveriesByInnings(
-    currentMatchId ? BigInt(currentMatchId) : null,
-    BigInt(currentInnings)
-  );
+  // Use refs for strikerId/nonStrikerId so handleDelivery always has fresh values
+  const strikerIdRef = useRef<bigint | null>(null);
+  const nonStrikerIdRef = useRef<bigint | null>(null);
+  const currentInningsRef = useRef<number>(1);
 
-  const recordDeliveryMutation = useRecordDelivery();
+  // Keep refs in sync with state
+  useEffect(() => { strikerIdRef.current = strikerId; }, [strikerId]);
+  useEffect(() => { nonStrikerIdRef.current = nonStrikerId; }, [nonStrikerId]);
+  useEffect(() => { currentInningsRef.current = currentInnings; }, [currentInnings]);
 
-  const oversLimit = match ? Number(match.rules.oversLimit) : 20;
+  const recordDelivery = useRecordDelivery();
 
-  // UI state
-  const [runs, setRuns] = useState(0);
-  const [extra, setExtra] = useState<DeliveryExtra>('none');
-  const [showWicketModal, setShowWicketModal] = useState(false);
-  const [showEndOfOverModal, setShowEndOfOverModal] = useState(false);
-  const [showEndOfInningsModal, setShowEndOfInningsModal] = useState(false);
-  const [showOpenerModal, setShowOpenerModal] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  // ── load persisted state ─────────────────────────────────────────────────
+  useEffect(() => {
+    if (!matchIdStr) return;
+    const saved = getLocalMatchState(matchIdStr);
+    if (saved) {
+      if (saved.strikerId) setStrikerId(BigInt(saved.strikerId));
+      if (saved.nonStrikerId) setNonStrikerId(BigInt(saved.nonStrikerId));
+      if (saved.bowlerId) setBowlerId(BigInt(saved.bowlerId));
+    }
+    // Load extended state from localStorage directly
+    try {
+      const raw = localStorage.getItem(`cricket_live_state_${matchIdStr}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed.currentInnings) setCurrentInnings(Number(parsed.currentInnings));
+        if (parsed.localDeliveries) {
+          setLocalDeliveries(
+            parsed.localDeliveries.map((d: any) => ({
+              ...d,
+              batsmanId: BigInt(d.batsmanId),
+              bowlerId: BigInt(d.bowlerId),
+              runs: BigInt(d.runs),
+              wicket: d.wicket,
+            }))
+          );
+        }
+        if (parsed.innings2Deliveries) {
+          setInnings2Deliveries(
+            parsed.innings2Deliveries.map((d: any) => ({
+              ...d,
+              batsmanId: BigInt(d.batsmanId),
+              bowlerId: BigInt(d.bowlerId),
+              runs: BigInt(d.runs),
+              wicket: d.wicket,
+            }))
+          );
+        }
+        if (parsed.matchResult) setMatchResult(parsed.matchResult);
+        // Restore lastHandledOver so we don't re-trigger on reload
+        if (typeof parsed.lastHandledOver === "number") {
+          lastHandledOverRef.current = parsed.lastHandledOver;
+        }
+      }
+    } catch {}
+  }, [matchIdStr]);
 
-  const lastDeliveryWasOddRunRef = useRef(false);
+  // ── persist state ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!matchIdStr) return;
+    // Save basic state via matchStore
+    saveLocalMatchState(matchIdStr, {
+      strikerId: strikerId ?? null,
+      nonStrikerId: nonStrikerId ?? null,
+      bowlerId: bowlerId ?? null,
+    });
+    // Save extended state directly
+    try {
+      const extended = {
+        currentInnings,
+        localDeliveries: localDeliveries.map((d) => ({
+          ...d,
+          batsmanId: d.batsmanId.toString(),
+          bowlerId: d.bowlerId.toString(),
+          runs: d.runs.toString(),
+        })),
+        innings2Deliveries: innings2Deliveries.map((d) => ({
+          ...d,
+          batsmanId: d.batsmanId.toString(),
+          bowlerId: d.bowlerId.toString(),
+          runs: d.runs.toString(),
+        })),
+        matchResult,
+        lastHandledOver: lastHandledOverRef.current,
+      };
+      localStorage.setItem(`cricket_live_state_${matchIdStr}`, JSON.stringify(extended));
+    } catch {}
+  }, [matchIdStr, strikerId, nonStrikerId, bowlerId, currentInnings, localDeliveries, innings2Deliveries, matchResult]);
 
-  const legalDeliveries = deliveries.filter(isLegalDelivery);
-  const legalBallsInCurrentOver = legalDeliveries.length % 6;
-  const completedOvers = Math.floor(legalDeliveries.length / 6);
-  const totalRuns = deliveries.reduce((sum, d) => {
-    return sum + Number(d.runs) + (d.isWide ? 1 : 0) + (d.isNoBall ? 1 : 0);
-  }, 0);
-  const wickets = deliveries.filter(d => d.wicket != null).length;
-  const oversDisplay = `${completedOvers}.${legalBallsInCurrentOver}`;
+  // ── derived data ─────────────────────────────────────────────────────────
+  const meta = matchIdStr ? getMatchMeta(matchIdStr) : null;
 
-  const isInningsComplete = wickets >= 10 || completedOvers >= oversLimit;
+  const teamA = allTeams.find((t) => match && t.id === match.teamAId);
+  const teamB = allTeams.find((t) => match && t.id === match.teamBId);
 
-  const teamA = allTeams.find(t => match && t.id === match.teamAId);
-  const teamB = allTeams.find(t => match && t.id === match.teamBId);
+  // In innings 1: teamA bats, teamB bowls
+  // In innings 2: teamB bats, teamA bowls
   const battingTeam = currentInnings === 1 ? teamA : teamB;
   const bowlingTeam = currentInnings === 1 ? teamB : teamA;
 
-  const battingPlayingEleven: bigint[] = currentInnings === 1
-    ? (meta?.teamAPlayingEleven ?? [])
-    : (meta?.teamBPlayingEleven ?? []);
-  const bowlingPlayingEleven: bigint[] = currentInnings === 1
-    ? (meta?.teamBPlayingEleven ?? [])
-    : (meta?.teamAPlayingEleven ?? []);
-
-  const allBattingPlayers: Player[] = battingTeam?.players ?? [];
-  const allBowlingPlayers: Player[] = bowlingTeam?.players ?? [];
-  // Combined player list for modals that need all players
+  // Combined player pool for reliable name lookups
   const allPlayers: Player[] = [...(teamA?.players ?? []), ...(teamB?.players ?? [])];
 
-  const teamAName = teamA?.name ?? 'Team A';
-  const teamBName = teamB?.name ?? 'Team B';
-  const battingTeamName = currentInnings === 1 ? teamAName : teamBName;
-  const bowlingTeamName = currentInnings === 1 ? teamBName : teamAName;
+  // Batting/bowling team players — fall back to allPlayers if team not yet loaded
+  const allBattingPlayers: Player[] =
+    battingTeam?.players?.length ? battingTeam.players : allPlayers;
+  const allBowlingPlayers: Player[] =
+    bowlingTeam?.players?.length ? bowlingTeam.players : allPlayers;
 
-  const strikerStats = strikerId != null ? computeBatsmanStats(strikerId, deliveries) : null;
-  const nonStrikerStats = nonStrikerId != null ? computeBatsmanStats(nonStrikerId, deliveries) : null;
-  const bowlerStats = bowlerId != null ? computeBowlerStats(bowlerId, deliveries) : null;
+  const activeDeliveries =
+    currentInnings === 1 ? localDeliveries : innings2Deliveries;
 
-  // Innings 1 score for target calculation
-  const innings1Runs = Number(match?.innings?.[0]?.totalRuns ?? 0);
-  const target = currentInnings === 2 ? innings1Runs + 1 : undefined;
-  const runsRequired = target != null ? target - totalRuns : undefined;
+  // ── score computation ────────────────────────────────────────────────────
+  const totalRuns = activeDeliveries.reduce(
+    (sum, d) => sum + Number(d.runs),
+    0
+  );
+  const totalWickets = activeDeliveries.filter((d) => d.wicket).length;
 
+  const legalBalls = activeDeliveries.filter(
+    (d) => !d.isWide && !d.isNoBall
+  ).length;
+  const oversCompleted = Math.floor(legalBalls / 6);
+  const ballsInCurrentOver = legalBalls % 6;
+  const oversDisplay = `${oversCompleted}.${ballsInCurrentOver}`;
+
+  const oversLimit = match ? Number(match.rules.oversLimit) : 20;
+
+  // First innings score — always from localDeliveries (innings 1)
+  const innings1Runs = localDeliveries.reduce((sum, d) => sum + Number(d.runs), 0);
+  const innings1Wickets = localDeliveries.filter((d) => d.wicket).length;
+  const target = innings1Runs + 1;
+  const runsRequired = target - totalRuns;
+
+  // innings1Summary string for ScoreDisplay
+  const innings1Summary =
+    currentInnings === 2
+      ? `${teamA?.name ?? "Team A"}: ${innings1Runs}/${innings1Wickets} | Target: ${target}`
+      : undefined;
+
+  // ── over detection ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!currentMatchId) return;
-    if (isMatchOver) return;
-    if (strikerId == null || nonStrikerId == null || bowlerId == null) {
-      setShowOpenerModal(true);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentMatchId, currentInnings]);
-
-  const prevLegalCountRef = useRef(-1);
-  useEffect(() => {
-    const curr = legalDeliveries.length;
-    if (prevLegalCountRef.current === -1) {
-      prevLegalCountRef.current = curr;
-      return;
-    }
-    if (curr === 0) {
-      prevLegalCountRef.current = 0;
-      return;
-    }
-    if (curr % 6 === 0 && curr !== prevLegalCountRef.current && !isMatchOver && !isInningsComplete) {
-      setShowEndOfOverModal(true);
-    }
-    prevLegalCountRef.current = curr;
-  }, [legalDeliveries.length, isMatchOver, isInningsComplete]);
-
-  const prevInningsCompleteRef = useRef(false);
-  useEffect(() => {
-    if (prevInningsCompleteRef.current === isInningsComplete) return;
-    prevInningsCompleteRef.current = isInningsComplete;
-    if (!isInningsComplete || isMatchOver) return;
-
-    if (currentInnings === 1) {
-      setShowEndOfInningsModal(true);
-    } else {
-      const runsShort = (innings1Runs + 1) - totalRuns - 1;
-      const result = runsShort > 0
-        ? `${teamAName} wins by ${runsShort} run${runsShort !== 1 ? 's' : ''}`
-        : `${teamBName} wins (scores level)`;
-      endMatch(result);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInningsComplete]);
-
-  const handleRecordDelivery = useCallback(async (wicketType?: WicketType) => {
-    if (!currentMatchId || !strikerId || !bowlerId) return;
-    if (isRecording) return;
-
-    setIsRecording(true);
-    try {
-      const isWide = extra === 'wide';
-      const isNoBall = extra === 'noBall';
-      const isBye = extra === 'bye';
-      const isLegBye = extra === 'legBye';
-      const isLegal = !isWide && !isNoBall;
-
-      const delivery: Delivery = {
-        batsmanId: strikerId,
-        bowlerId: bowlerId,
-        runs: BigInt(runs),
-        isWide,
-        isNoBall,
-        isBye,
-        isLegBye,
-        isFreeHit: false,
-        wicket: wicketType,
-      };
-
-      await recordDeliveryMutation.mutateAsync({
-        matchId: BigInt(currentMatchId),
-        inningsId: BigInt(currentInnings),
-        delivery,
-      });
-
-      if (isLegal && !wicketType && runs % 2 === 1) {
-        swapBatsmen();
-        lastDeliveryWasOddRunRef.current = true;
+    if (
+      ballsInCurrentOver === 0 &&
+      legalBalls > 0 &&
+      !showWicket &&
+      !showEndOfInnings &&
+      oversCompleted > lastHandledOverRef.current
+    ) {
+      const isLastOver = oversCompleted >= oversLimit;
+      if (isLastOver) {
+        lastHandledOverRef.current = oversCompleted;
+        if (currentInnings === 1) {
+          setShowEndOfInnings(true);
+        } else {
+          const won = totalRuns > innings1Runs;
+          if (won) {
+            setMatchResult(`${battingTeam?.name ?? "Team"} won!`);
+          } else {
+            setMatchResult(
+              `${bowlingTeam?.name ?? "Team"} won by ${innings1Runs - totalRuns + 1} runs!`
+            );
+          }
+        }
       } else {
-        lastDeliveryWasOddRunRef.current = false;
+        lastHandledOverRef.current = oversCompleted;
+        setShowEndOfOver(true);
       }
-
-      setRuns(0);
-      setExtra('none');
-
-      await refetchDeliveries();
-    } catch (err) {
-      console.error('Failed to record delivery', err);
-    } finally {
-      setIsRecording(false);
     }
-  }, [currentMatchId, strikerId, bowlerId, runs, extra, currentInnings, isRecording, recordDeliveryMutation, swapBatsmen, refetchDeliveries]);
+  }, [
+    legalBalls,
+    ballsInCurrentOver,
+    oversCompleted,
+    oversLimit,
+    showWicket,
+    showEndOfInnings,
+    currentInnings,
+    totalRuns,
+    innings1Runs,
+    battingTeam,
+    bowlingTeam,
+  ]);
 
-  const handleWicketConfirm = useCallback(async (wicketType: WicketType, newBatsmanId: bigint) => {
-    setShowWicketModal(false);
-    await handleRecordDelivery(wicketType);
-    setStrikerId(newBatsmanId);
-  }, [handleRecordDelivery, setStrikerId]);
+  // ── wicket handling ──────────────────────────────────────────────────────
+  const handleWicket = useCallback((partialDelivery: Partial<Delivery>) => {
+    setPendingWicketDelivery(partialDelivery);
+    setDismissedBatsmanId(partialDelivery.batsmanId ?? null);
+    setShowWicket(true);
+  }, []);
 
-  const handleEndOfOverConfirm = useCallback((newBowlerId: bigint) => {
-    setShowEndOfOverModal(false);
-    setBowlerId(newBowlerId);
-    if (!lastDeliveryWasOddRunRef.current) {
-      swapBatsmen();
-    }
-    lastDeliveryWasOddRunRef.current = false;
-  }, [setBowlerId, swapBatsmen]);
+  // ── record delivery ──────────────────────────────────────────────────────
+  // Uses functional state updates to avoid stale closure on deliveries array.
+  const handleDelivery = useCallback(
+    async (delivery: Delivery) => {
+      if (!matchIdBigInt || !actor) return;
+      setIsSubmitting(true);
+      try {
+        const innings = currentInningsRef.current;
+        const inningsId = BigInt(innings);
+        await recordDelivery.mutateAsync({ matchId: matchIdBigInt, inningsId, delivery });
 
-  const handleStartNextInnings = useCallback((
-    newStrikerId: bigint,
-    newNonStrikerId: bigint,
-    newBowlerId: bigint
-  ) => {
-    setShowEndOfInningsModal(false);
-    startNextInnings(newStrikerId, newNonStrikerId, newBowlerId);
-    setTimeout(() => refetchDeliveries(), 100);
-  }, [startNextInnings, refetchDeliveries]);
+        // Use functional updates so we always append to the latest array
+        if (innings === 1) {
+          setLocalDeliveries((prev) => [...prev, delivery]);
+        } else {
+          setInnings2Deliveries((prev) => [...prev, delivery]);
+        }
 
-  const handleOpenerConfirm = useCallback((
-    newStrikerId: bigint,
-    newNonStrikerId: bigint,
-    newBowlerId: bigint
-  ) => {
-    setShowOpenerModal(false);
-    setStrikerId(newStrikerId);
-    setNonStrikerId(newNonStrikerId);
-    setBowlerId(newBowlerId);
-  }, [setStrikerId, setNonStrikerId, setBowlerId]);
-
-  if (!currentMatchId || !meta) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 p-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>No active match found. Please set up a match first.</AlertDescription>
-        </Alert>
-        <Button onClick={() => navigate({ to: '/setup' })}>Go to Setup</Button>
-      </div>
-    );
-  }
-
-  // Show backend error state if critical queries fail
-  if (teamsError || matchError) {
-    const err = teamsErrorObj ?? matchErrorObj;
-    return (
-      <div className="flex flex-col gap-4 p-4 max-w-lg mx-auto">
-        <h2 className="text-xl font-bold text-foreground">Live Scoring</h2>
-        <QueryErrorState
-          error={err}
-          title="Failed to load match data"
-          onRetry={() => {
-            refetchTeams();
-            refetchMatch();
-            refetchDeliveries();
-          }}
-        />
-      </div>
-    );
-  }
-
-  const dismissedBatsmanIds = deliveries
-    .filter(d => d.wicket != null)
-    .map(d => d.batsmanId);
-
-  // Available next batsmen: in playing 11, not currently at crease, not dismissed
-  const availableNextBatsmen = battingPlayingEleven.filter(
-    pid => pid !== strikerId && pid !== nonStrikerId && !dismissedBatsmanIds.includes(pid)
+        // Swap striker/non-striker on odd runs using refs for fresh values
+        if (Number(delivery.runs) % 2 === 1) {
+          const currentStriker = strikerIdRef.current;
+          const currentNonStriker = nonStrikerIdRef.current;
+          setStrikerId(currentNonStriker);
+          setNonStrikerId(currentStriker);
+        }
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [matchIdBigInt, actor, recordDelivery]
   );
 
-  const canRecord = strikerId != null && nonStrikerId != null && bowlerId != null && !isMatchOver;
+  // ── scoring buttons ──────────────────────────────────────────────────────
+  const scoreRuns = useCallback(
+    async (runs: number) => {
+      const currentStriker = strikerIdRef.current;
+      const currentBowler = bowlerId;
+      if (!currentStriker || !currentBowler) return;
+      const delivery: Delivery = {
+        batsmanId: currentStriker,
+        bowlerId: currentBowler,
+        runs: BigInt(runs),
+        isWide: false,
+        isNoBall: false,
+        isFreeHit: false,
+        isBye: false,
+        isLegBye: false,
+        wicket: undefined,
+      };
+      await handleDelivery(delivery);
+    },
+    [bowlerId, handleDelivery]
+  );
 
-  // Score string for innings summary display
-  const innings1ScoreSummary = `${innings1Runs}/${Number(match?.innings?.[0]?.wicketsLost ?? 0)}`;
+  const scoreExtra = useCallback(
+    async (type: "wide" | "noBall" | "bye" | "legBye") => {
+      const currentStriker = strikerIdRef.current;
+      const currentBowler = bowlerId;
+      if (!currentStriker || !currentBowler) return;
+      const delivery: Delivery = {
+        batsmanId: currentStriker,
+        bowlerId: currentBowler,
+        runs: 1n,
+        isWide: type === "wide",
+        isNoBall: type === "noBall",
+        isFreeHit: false,
+        isBye: type === "bye",
+        isLegBye: type === "legBye",
+        wicket: undefined,
+      };
+      await handleDelivery(delivery);
+    },
+    [bowlerId, handleDelivery]
+  );
+
+  const scoreWicket = useCallback(() => {
+    const currentStriker = strikerIdRef.current;
+    const currentBowler = bowlerId;
+    if (!currentStriker || !currentBowler) return;
+    handleWicket({ batsmanId: currentStriker, bowlerId: currentBowler });
+  }, [bowlerId, handleWicket]);
+
+  // ── innings transition ───────────────────────────────────────────────────
+  const handleEndOfInnings = useCallback(
+    (newStriker: bigint, newNonStriker: bigint, newBowler: bigint) => {
+      setCurrentInnings(2);
+      setStrikerId(newStriker);
+      setNonStrikerId(newNonStriker);
+      setBowlerId(newBowler);
+      setShowEndOfInnings(false);
+      // Reset the handled-over tracker for the new innings
+      lastHandledOverRef.current = -1;
+    },
+    []
+  );
+
+  // ── end of over ──────────────────────────────────────────────────────────
+  const handleEndOfOver = useCallback(
+    (newBowler: bigint) => {
+      setShowEndOfOver(false);
+      setBowlerId(newBowler);
+      // Swap batsmen at end of over using refs for fresh values
+      const currentStriker = strikerIdRef.current;
+      const currentNonStriker = nonStrikerIdRef.current;
+      setStrikerId(currentNonStriker);
+      setNonStrikerId(currentStriker);
+    },
+    []
+  );
+
+  // ── wicket confirmed ─────────────────────────────────────────────────────
+  const handleWicketConfirmed = useCallback(
+    async (
+      dismissedId: bigint,
+      newBatsmanId: bigint,
+      wicketType: Delivery["wicket"]
+    ) => {
+      if (!pendingWicketDelivery || !bowlerId) return;
+      const delivery: Delivery = {
+        batsmanId: dismissedId,
+        bowlerId,
+        runs: BigInt(pendingWicketDelivery.runs ?? 0),
+        isWide: false,
+        isNoBall: false,
+        isFreeHit: false,
+        isBye: false,
+        isLegBye: false,
+        wicket: wicketType,
+      };
+      await handleDelivery(delivery);
+      if (dismissedId === strikerIdRef.current) {
+        setStrikerId(newBatsmanId);
+      } else {
+        setNonStrikerId(newBatsmanId);
+      }
+      setPendingWicketDelivery(null);
+      setDismissedBatsmanId(null);
+      setShowWicket(false);
+
+      const newWickets = totalWickets + 1;
+      if (newWickets >= 10) {
+        if (currentInnings === 1) {
+          setShowEndOfInnings(true);
+        } else {
+          setMatchResult(
+            `${bowlingTeam?.name ?? "Team"} won by ${innings1Runs - totalRuns} runs!`
+          );
+        }
+      }
+    },
+    [
+      pendingWicketDelivery,
+      bowlerId,
+      handleDelivery,
+      totalWickets,
+      currentInnings,
+      bowlingTeam,
+      innings1Runs,
+      totalRuns,
+    ]
+  );
+
+  // ── loading / error ──────────────────────────────────────────────────────
+  if (matchLoading || teamsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="animate-spin w-8 h-8 text-primary" />
+      </div>
+    );
+  }
+
+  if (!match) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertCircle className="w-12 h-12 text-destructive" />
+        <p className="text-lg font-semibold">Match not found</p>
+      </div>
+    );
+  }
+
+  // ── playing elevens ──────────────────────────────────────────────────────
+  const teamAPlayingEleven: bigint[] =
+    meta?.teamAPlayingEleven ?? teamA?.squad ?? [];
+  const teamBPlayingEleven: bigint[] =
+    meta?.teamBPlayingEleven ?? teamB?.squad ?? [];
+
+  const battingPlayingEleven =
+    currentInnings === 1 ? teamAPlayingEleven : teamBPlayingEleven;
+  const bowlingPlayingEleven =
+    currentInnings === 1 ? teamBPlayingEleven : teamAPlayingEleven;
+
+  // Dismissed batsmen
+  const dismissedIds = new Set(
+    activeDeliveries.filter((d) => d.wicket).map((d) => d.batsmanId)
+  );
+
+  // Available batsmen: from batting playing eleven, not at crease, not dismissed
+  const availableBatsmen = allPlayers.filter(
+    (p) =>
+      battingPlayingEleven.some((id) => id === p.id) &&
+      p.id !== strikerId &&
+      p.id !== nonStrikerId &&
+      !dismissedIds.has(p.id)
+  );
+
+  // Available bowlers: from bowling playing eleven
+  const availableBowlers = allPlayers.filter((p) =>
+    bowlingPlayingEleven.some((id) => id === p.id)
+  );
+
+  // Playing eleven player objects for modals
+  const battingPlayingElevenPlayers = allPlayers.filter((p) =>
+    battingPlayingEleven.some((id) => id === p.id)
+  );
+  const bowlingPlayingElevenPlayers = allPlayers.filter((p) =>
+    bowlingPlayingEleven.some((id) => id === p.id)
+  );
+
+  // ── batsman/bowler stats ─────────────────────────────────────────────────
+  const strikerStats = strikerId
+    ? computeBatsmanStats(activeDeliveries, strikerId)
+    : null;
+  const nonStrikerStats = nonStrikerId
+    ? computeBatsmanStats(activeDeliveries, nonStrikerId)
+    : null;
+  const bowlerStats = bowlerId
+    ? computeBowlerStats(activeDeliveries, bowlerId)
+    : null;
+
+  const overNumber = oversCompleted + 1;
+
+  const canScore = !!strikerId && !!bowlerId && !isSubmitting && !matchResult;
 
   return (
-    <div className="flex flex-col gap-3 p-3 pb-24 max-w-lg mx-auto">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
       {/* Match result banner */}
-      {isMatchOver && matchResult && (
-        <Card className="border-2 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2 justify-center">
-              <Trophy className="h-5 w-5 text-yellow-600" />
-              <p className="font-bold text-yellow-800 dark:text-yellow-200">{matchResult}</p>
-            </div>
-            <div className="flex gap-2 mt-3 justify-center">
-              <Button size="sm" onClick={() => navigate({ to: '/scorecard' })}>
-                View Scorecard
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate({ to: '/history' })}>
-                Match History
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {matchResult && (
+        <div className="bg-primary text-primary-foreground rounded-lg p-4 text-center font-bold text-lg">
+          🏆 {matchResult}
+        </div>
       )}
 
-      {/* Score Display */}
+      {/* Score display */}
       <ScoreDisplay
-        battingTeamName={battingTeamName}
-        bowlingTeamName={bowlingTeamName}
+        battingTeamName={battingTeam?.name ?? "Batting Team"}
+        bowlingTeamName={bowlingTeam?.name ?? "Bowling Team"}
         runs={totalRuns}
-        wickets={wickets}
+        wickets={totalWickets}
         overs={oversDisplay}
         oversLimit={oversLimit}
         innings={currentInnings}
-        target={target}
-        runsRequired={runsRequired}
-        innings1Summary={currentInnings === 2 ? `${teamAName}: ${innings1ScoreSummary}` : undefined}
+        target={currentInnings === 2 ? target : undefined}
+        runsRequired={currentInnings === 2 ? runsRequired : undefined}
+        innings1Summary={innings1Summary}
       />
 
-      {/* Over Timeline */}
-      <OverTimeline deliveries={deliveries} currentOver={completedOvers} />
-
-      {/* Batsman Stats */}
-      {(strikerStats || nonStrikerStats) && (
+      {/* Batsman stats */}
+      {strikerId && nonStrikerId && strikerStats && nonStrikerStats && (
         <BatsmanStatsPanel
-          striker={strikerStats}
-          nonStriker={nonStrikerStats}
+          strikerId={strikerId}
+          nonStrikerId={nonStrikerId}
+          strikerStats={strikerStats}
+          nonStrikerStats={nonStrikerStats}
           players={allBattingPlayers}
+          allPlayers={allPlayers}
         />
       )}
 
-      {/* Bowler Stats */}
-      {bowlerStats && (
+      {/* Bowler stats */}
+      {bowlerId && bowlerStats && (
         <BowlerStatsPanel
-          bowler={bowlerStats}
+          bowlerId={bowlerId}
+          bowlerStats={bowlerStats}
           players={allBowlingPlayers}
+          allPlayers={allPlayers}
         />
       )}
 
-      {/* Delivery error */}
-      {deliveriesError && (
-        <QueryErrorState
-          error={deliveriesErrorObj}
-          title="Failed to load deliveries"
-          onRetry={() => refetchDeliveries()}
-        />
-      )}
+      {/* Over timeline */}
+      <OverTimeline deliveries={activeDeliveries} currentOver={overNumber} />
 
-      {/* Record delivery error */}
-      {recordDeliveryMutation.isError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Failed to record delivery. Please try again.
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Scoring pad */}
+      {!matchResult && (
+        <div className="bg-card border rounded-xl p-4 space-y-3">
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+            Scoring Pad
+          </h3>
 
-      {/* Scoring Controls */}
-      {!isMatchOver && (
-        <Card>
-          <CardContent className="pt-4 space-y-4">
-            {/* Runs */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Runs</p>
-              <div className="grid grid-cols-4 gap-2">
+          {!strikerId || !bowlerId ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Waiting for innings setup…
+            </p>
+          ) : (
+            <>
+              {/* Run buttons */}
+              <div className="grid grid-cols-7 gap-2">
                 {[0, 1, 2, 3, 4, 5, 6].map((r) => (
                   <Button
                     key={r}
-                    variant={runs === r ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setRuns(r)}
-                    className="h-10 text-base font-bold"
+                    variant={r === 4 || r === 6 ? "default" : "outline"}
+                    className="h-12 text-lg font-bold"
+                    disabled={!canScore}
+                    onClick={() => scoreRuns(r)}
                   >
                     {r}
                   </Button>
                 ))}
               </div>
-            </div>
 
-            {/* Extras */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Extra</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['none', 'wide', 'noBall', 'bye', 'legBye'] as DeliveryExtra[]).map((e) => (
-                  <Button
-                    key={e}
-                    variant={extra === e ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setExtra(e)}
-                    className="text-xs"
-                  >
-                    {e === 'none' ? 'None' : e === 'noBall' ? 'No Ball' : e === 'legBye' ? 'Leg Bye' : e.charAt(0).toUpperCase() + e.slice(1)}
-                  </Button>
-                ))}
+              {/* Extra buttons */}
+              <div className="grid grid-cols-4 gap-2">
+                <Button
+                  variant="secondary"
+                  className="h-10 text-sm font-semibold"
+                  disabled={!canScore}
+                  onClick={() => scoreExtra("wide")}
+                >
+                  Wide
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="h-10 text-sm font-semibold"
+                  disabled={!canScore}
+                  onClick={() => scoreExtra("noBall")}
+                >
+                  No Ball
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="h-10 text-sm font-semibold"
+                  disabled={!canScore}
+                  onClick={() => scoreExtra("bye")}
+                >
+                  Bye
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="h-10 text-sm font-semibold"
+                  disabled={!canScore}
+                  onClick={() => scoreExtra("legBye")}
+                >
+                  Leg Bye
+                </Button>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="flex gap-2">
+              {/* Wicket button */}
               <Button
-                className="flex-1"
-                disabled={!canRecord || isRecording}
-                onClick={() => handleRecordDelivery()}
+                variant="destructive"
+                className="w-full h-12 text-base font-bold"
+                disabled={!canScore}
+                onClick={scoreWicket}
               >
-                {isRecording ? (
-                  <Loader2 size={14} className="mr-1 animate-spin" />
+                {isSubmitting ? (
+                  <Loader2 className="animate-spin w-5 h-5 mr-2" />
                 ) : null}
-                Record
+                Wicket
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!canRecord || isRecording}
-                onClick={() => setShowWicketModal(true)}
-                title="Wicket"
-              >
-                <RotateCcw size={16} />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                disabled={!canRecord || isRecording}
-                onClick={() => swapBatsmen()}
-                title="Swap batsmen"
-              >
-                <ArrowLeftRight size={16} />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </>
+          )}
+        </div>
       )}
 
-      {/* Wicket Modal */}
-      <WicketModal
-        open={showWicketModal}
-        onClose={() => setShowWicketModal(false)}
-        onConfirm={handleWicketConfirm}
-        dismissedBatsmanId={strikerId ?? BigInt(0)}
-        battingTeamPlayers={battingPlayingEleven}
-        allPlayers={allPlayers}
-      />
-
-      {/* End of Over Modal */}
+      {/* Modals */}
       <EndOfOverModal
-        isOpen={showEndOfOverModal}
-        onClose={() => setShowEndOfOverModal(false)}
-        onConfirm={handleEndOfOverConfirm}
-        currentBowlerId={bowlerId}
-        bowlingTeamPlayers={bowlingPlayingEleven}
+        isOpen={showEndOfOver}
+        onClose={() => setShowEndOfOver(false)}
+        bowlingTeamPlayers={allBowlingPlayers}
         allPlayers={allPlayers}
-        overNumber={completedOvers}
+        overNumber={overNumber}
+        onConfirm={handleEndOfOver}
+        currentBowlerId={bowlerId ?? undefined}
+        availableBowlers={availableBowlers}
       />
 
-      {/* End of Innings / Opener Selection Modal */}
+      {dismissedBatsmanId !== null && (
+        <WicketModal
+          isOpen={showWicket}
+          onClose={() => {
+            setShowWicket(false);
+            setPendingWicketDelivery(null);
+            setDismissedBatsmanId(null);
+          }}
+          dismissedBatsmanId={dismissedBatsmanId}
+          battingTeamPlayers={allBattingPlayers}
+          allPlayers={allPlayers}
+          availableBatsmen={availableBatsmen}
+          onConfirm={handleWicketConfirmed}
+        />
+      )}
+
       <EndOfInningsModal
-        isOpen={showEndOfInningsModal || showOpenerModal}
-        onClose={() => {
-          setShowEndOfInningsModal(false);
-          setShowOpenerModal(false);
-        }}
-        onConfirm={showEndOfInningsModal ? handleStartNextInnings : handleOpenerConfirm}
+        isOpen={showEndOfInnings}
+        onClose={() => setShowEndOfInnings(false)}
         inningsNumber={currentInnings}
-        battingTeamPlayers={battingPlayingEleven}
-        bowlingTeamPlayers={bowlingPlayingEleven}
+        battingTeamPlayers={
+          currentInnings === 1
+            ? (teamB?.players ?? allBowlingPlayers)
+            : (teamA?.players ?? allBattingPlayers)
+        }
+        bowlingTeamPlayers={
+          currentInnings === 1
+            ? (teamA?.players ?? allBattingPlayers)
+            : (teamB?.players ?? allBowlingPlayers)
+        }
         allPlayers={allPlayers}
-        score={`${totalRuns}/${wickets} (${oversDisplay})`}
-        isOpenerSelection={showOpenerModal && !showEndOfInningsModal}
+        score={{ runs: innings1Runs, wickets: innings1Wickets }}
+        onConfirm={handleEndOfInnings}
       />
     </div>
   );

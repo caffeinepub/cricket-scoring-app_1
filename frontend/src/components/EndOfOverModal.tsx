@@ -1,107 +1,97 @@
-import { useState, useEffect } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
-  DialogOverlay,
-  DialogPortal,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import type { Player } from '@/backend';
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import type { Player } from "../backend";
 
 interface EndOfOverModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (nextBowlerId: bigint) => void;
-  currentBowlerId: bigint | null;
-  bowlingTeamPlayers: bigint[];
+  bowlingTeamPlayers: Player[];
   allPlayers: Player[];
   overNumber: number;
+  onConfirm: (newBowlerId: bigint) => void;
+  currentBowlerId?: bigint;
+  availableBowlers?: Player[];
 }
 
 export default function EndOfOverModal({
   isOpen,
   onClose,
-  onConfirm,
-  currentBowlerId,
   bowlingTeamPlayers,
   allPlayers,
   overNumber,
+  onConfirm,
+  currentBowlerId,
+  availableBowlers,
 }: EndOfOverModalProps) {
-  const [selectedBowlerId, setSelectedBowlerId] = useState<string>('');
+  const [selectedBowler, setSelectedBowler] = useState<string>("");
 
-  useEffect(() => {
-    if (isOpen) setSelectedBowlerId('');
-  }, [isOpen]);
-
-  const eligibleBowlers = allPlayers.filter(p =>
-    bowlingTeamPlayers.some(id => id === p.id) && p.id !== currentBowlerId
-  );
+  const bowlerList = availableBowlers ?? bowlingTeamPlayers;
 
   const handleConfirm = () => {
-    if (!selectedBowlerId) return;
-    onConfirm(BigInt(selectedBowlerId));
-    setSelectedBowlerId('');
+    if (!selectedBowler) return;
+    onConfirm(BigInt(selectedBowler));
+    setSelectedBowler("");
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogPortal>
-        <DialogOverlay className="bg-black/60 backdrop-blur-sm" />
-        <DialogContent
-          className="bg-background border border-border shadow-xl sm:max-w-sm"
-          onInteractOutside={e => e.preventDefault()}
-          onEscapeKeyDown={e => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-foreground">End of Over {overNumber}</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
-              Over {overNumber} complete. Select the bowler for the next over.
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>End of Over {overNumber - 1}</DialogTitle>
+          <DialogDescription>
+            Over {overNumber - 1} complete. Select the bowler for the next
+            over.
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">
-                Next Bowler <span className="text-destructive">*</span>
-              </Label>
-              <Select value={selectedBowlerId} onValueChange={setSelectedBowlerId}>
-                <SelectTrigger className="bg-background border-border text-foreground">
-                  <SelectValue placeholder="Select next bowler..." />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {eligibleBowlers.map(p => (
-                    <SelectItem key={p.id.toString()} value={p.id.toString()} className="text-foreground">
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>
+              Next Bowler: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={selectedBowler} onValueChange={setSelectedBowler}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select next bowler..." />
+              </SelectTrigger>
+              <SelectContent>
+                {bowlerList.map((p) => (
+                  <SelectItem
+                    key={p.id.toString()}
+                    value={p.id.toString()}
+                    disabled={p.id === currentBowlerId}
+                  >
+                    {p.name}
+                    {p.id === currentBowlerId ? " (current)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <DialogFooter>
-            <Button
-              onClick={handleConfirm}
-              disabled={!selectedBowlerId}
-              className="w-full"
-            >
-              Start Over {overNumber + 1}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </DialogPortal>
+          <Button
+            className="w-full"
+            onClick={handleConfirm}
+            disabled={!selectedBowler}
+          >
+            Start Over {overNumber}
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

@@ -1,56 +1,42 @@
 {
   "kind": "build_request",
-  "title": "Fix canister stopped error causing getAllTeams failure",
+  "title": "Fix broken scoring in LiveScoring page",
+  "projectName": "Cricket Scorer",
   "priority": "high",
   "requirements": [
     {
-      "id": "REQ-1",
-      "text": "Add a graceful error boundary in the Teams page (and any other page that calls backend queries) so that when the backend canister returns a rejection error (e.g., IC0508 'canister is stopped'), the UI displays a user-friendly error message ('Unable to connect to the backend. Please try again later.') instead of the raw rejection text, and offers a retry button that re-triggers the query.",
+      "id": "REQ-2",
+      "text": "Diagnose and fix the scoring regression in LiveScoring.tsx where recording deliveries (runs, extras, wickets) has stopped functioning correctly. Ensure that every valid delivery type — normal runs (0–6), wides, no-balls, byes, leg-byes, and wickets — is correctly recorded, updates the score display, advances the over/ball count, and persists both to localStorage and the backend. The fix must not reintroduce the EndOfOverModal infinite bowler-selection loop resolved in Version 20.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4"
+          "msg-6"
         ],
         "quotes": [
-          "Failed to load teams: The replica returned a rejection error",
-          "Reject code: 5 Reject text: Canister rde4o-bqaaa-aaaaj-a3oja-cai is stopped and therefore does not have a CallContextManager Error code: IC0508"
+          "scoring again is not working .. it was working fine earlier"
         ]
       },
       "acceptanceCriteria": [
-        "When the backend canister is stopped or returns a reject code 5 (IC0508), the Teams page shows a friendly error message instead of the raw rejection text.",
-        "A 'Retry' button is visible in the error state that re-triggers the getAllTeams query.",
-        "No unhandled JavaScript errors are thrown to the console due to the canister rejection.",
-        "All other pages that invoke backend queries handle canister rejection errors the same way."
-      ]
-    },
-    {
-      "id": "REQ-2",
-      "text": "Ensure the backend Motoko actor in backend/main.mo compiles and is deployable without errors so the canister can be started and resume handling calls such as getAllTeams. Review the actor for any syntax errors, invalid stable variable declarations, or upgrade traps that could cause the canister to remain in a stopped state.",
-      "target": "backend",
-      "source": {
-        "messageIds": [
-          "msg-4"
-        ],
-        "quotes": [
-          "Canister rde4o-bqaaa-aaaaj-a3oja-cai is stopped and therefore does not have a CallContextManager",
-          "Method name: getAllTeams"
-        ]
-      },
-      "acceptanceCriteria": [
-        "The backend Motoko actor compiles without errors.",
-        "The canister starts successfully after deployment.",
-        "Calls to getAllTeams return a valid response (empty array or list of teams) without rejection."
+        "Tapping any run value (0–6) on the scoring pad increments the score and ball count correctly.",
+        "Wide and no-ball extras add the correct run penalty and do not advance the legal ball count.",
+        "Wicket recording decrements the wicket count and triggers the WicketModal for batsman selection.",
+        "The over count advances correctly after 6 legal deliveries and the EndOfOverModal appears exactly once.",
+        "Score updates are immediately reflected in ScoreDisplay and BatsmanStatsPanel/BowlerStatsPanel.",
+        "Match state is persisted to localStorage after each delivery.",
+        "The EndOfOverModal bowler-selection loop from the Version 20 fix remains resolved.",
+        "No console errors are thrown during normal scoring flow."
       ]
     }
   ],
   "constraints": [
-    "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui.",
-    "All Motoko logic must remain in the single actor in backend/main.mo."
+    "Do not reintroduce the EndOfOverModal infinite bowler-selection loop that was fixed in Version 20.",
+    "All Motoko logic must remain in the single backend/main.mo actor.",
+    "Do not modify any files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui."
   ],
   "nonGoals": [
-    "Changing the canister ID or redeploying to a different canister.",
-    "Migrating or resetting backend state unless required to fix the stopped canister.",
-    "Adding new features beyond fixing the canister stopped error and improving error handling."
+    "Redesigning the scoring UI layout.",
+    "Adding new delivery types or scoring rules.",
+    "Changes to team or player management."
   ],
   "imageRequirements": {
     "required": [],

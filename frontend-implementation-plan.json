@@ -1,52 +1,26 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Fix canister stopped error causing getAllTeams failure",
+  "title": "Fix broken scoring in LiveScoring page",
   "requirements": [
     {
-      "id": "REQ-1",
-      "summary": "Add graceful error boundary in Teams page and other pages calling backend queries to handle canister rejection errors with user-friendly messages and retry functionality",
+      "id": "REQ-2",
+      "summary": "Diagnose and fix the scoring regression in LiveScoring.tsx where recording deliveries (runs, extras, wickets) has stopped functioning correctly. Restore all delivery type handling (normal runs 0–6, wides, no-balls, byes, leg-byes, wickets) to correctly record, update score display, advance over/ball count, and persist to localStorage and backend without reintroducing the EndOfOverModal infinite bowler-selection loop.",
       "acceptanceCriteria": [
-        "When the backend canister is stopped or returns a reject code 5 (IC0508), the Teams page shows a friendly error message instead of the raw rejection text.",
-        "A 'Retry' button is visible in the error state that re-triggers the getAllTeams query.",
-        "No unhandled JavaScript errors are thrown to the console due to the canister rejection.",
-        "All other pages that invoke backend queries handle canister rejection errors the same way."
+        "Tapping any run value (0–6) on the scoring pad increments the score and ball count correctly.",
+        "Wide and no-ball extras add the correct run penalty and do not advance the legal ball count.",
+        "Wicket recording decrements the wicket count and triggers the WicketModal for batsman selection.",
+        "The over count advances correctly after 6 legal deliveries and the EndOfOverModal appears exactly once.",
+        "Score updates are immediately reflected in ScoreDisplay and BatsmanStatsPanel/BowlerStatsPanel.",
+        "Match state is persisted to localStorage after each delivery.",
+        "The EndOfOverModal bowler-selection loop from the Version 20 fix remains resolved.",
+        "No console errors are thrown during normal scoring flow."
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/ErrorBoundary.tsx",
-          "operation": "create",
-          "description": "Create a reusable ErrorBoundary component that displays user-friendly error messages when backend queries fail due to canister rejection errors. The component should detect IC0508 (canister stopped) errors and other rejection codes, display the message 'Unable to connect to the backend. Please try again later.' instead of raw error text, and provide a Retry button that accepts an onRetry callback to re-trigger failed queries. Use shadcn/ui Alert and Button components for consistent styling."
-        },
-        {
-          "path": "frontend/src/pages/Teams.tsx",
-          "operation": "modify",
-          "description": "Wrap the teams list rendering with the ErrorBoundary component to catch getAllTeams query failures. When the query fails (isError is true), render the ErrorBoundary with the error object and an onRetry callback that calls refetch(). Ensure the error state is handled gracefully without exposing raw rejection text to users. The Retry button should re-trigger the getAllTeams query by calling the refetch function from the useQuery hook."
-        },
-        {
-          "path": "frontend/src/pages/MatchSetup.tsx",
-          "operation": "modify",
-          "description": "Wrap backend query results (getAllTeams) with the ErrorBoundary component to handle canister rejection errors during match setup. When the teams query fails, display the ErrorBoundary with a retry callback that refetches the teams data. Ensure users can retry loading teams without the wizard crashing or showing raw error messages."
-        },
-        {
-          "path": "frontend/src/pages/MatchHistory.tsx",
-          "operation": "modify",
-          "description": "Add ErrorBoundary handling for any backend queries invoked on this page (if applicable). If the page calls backend queries for match data refresh or validation, wrap those sections with the ErrorBoundary component and provide retry callbacks to re-trigger failed queries."
-        },
-        {
-          "path": "frontend/src/pages/Rules.tsx",
-          "operation": "modify",
-          "description": "Wrap the getTournamentRules query result with the ErrorBoundary component to handle canister rejection errors when loading tournament rules. Provide a retry callback that refetches the rules data. Ensure the Rules page displays a user-friendly error message and Retry button when the backend is unavailable."
-        },
-        {
           "path": "frontend/src/pages/LiveScoring.tsx",
           "operation": "modify",
-          "description": "Add ErrorBoundary handling for backend queries or mutations invoked during live scoring (such as recordDelivery or getMatch). If any backend call fails due to canister rejection, display the ErrorBoundary with a user-friendly error message and retry functionality. Ensure the live scoring page does not crash or show raw error text when the canister is stopped."
-        },
-        {
-          "path": "frontend/src/pages/Scorecard.tsx",
-          "operation": "modify",
-          "description": "Wrap backend queries (getMatch, getDeliveriesByInnings) with the ErrorBoundary component to handle canister rejection errors when loading scorecard data. Provide retry callbacks that refetch the required data. Ensure the Scorecard page shows a friendly error message and Retry button when the backend is unavailable."
+          "description": "Diagnose and repair the broken scoring logic in the delivery recording flow. Identify the root cause preventing handleRecordDelivery from executing (likely event handler disconnection, conditional rendering issue, or state mutation bug). Restore functionality for all delivery types: normal runs (0–6), wides, no-balls, byes, leg-byes, and wickets. Ensure each delivery type correctly updates the deliveries array, triggers score/ball/over count updates, persists to localStorage via matchStore, calls the backend recordDelivery mutation, and updates React state to refresh ScoreDisplay, BatsmanStatsPanel, and BowlerStatsPanel. Verify that the over advancement logic triggers EndOfOverModal exactly once after 6 legal deliveries without reintroducing the infinite bowler-selection loop. Ensure WicketModal appears on wicket recording. Add defensive null checks and console logging for debugging if needed. Test all delivery paths to confirm acceptance criteria are met."
         }
       ]
     }

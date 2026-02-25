@@ -1,57 +1,34 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T16:43:52.155Z",
+  "generatedAt": "2026-02-25T17:42:32.974Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
+    "total": 1,
     "implemented": 1,
     "items": [
       {
-        "id": "REQ-1",
-        "summary": "Add a graceful error boundary in the Teams page (and any other page that calls backend queries) so that when the backend canister returns a rejection error (e.g., IC0508 'canister is stopped'), the UI displays a user-friendly error message ('Unable to connect to the backend. Please try again later.') instead of the raw rejection text, and offers a retry button that re-triggers the query.",
+        "id": "REQ-2",
+        "summary": "Diagnose and fix the scoring regression in LiveScoring.tsx where recording deliveries (runs, extras, wickets) has stopped functioning correctly. Ensure that every valid delivery type — normal runs (0–6), wides, no-balls, byes, leg-byes, and wickets — is correctly recorded, updates the score display, advances the over/ball count, and persists both to localStorage and the backend. The fix must not reintroduce the EndOfOverModal infinite bowler-selection loop resolved in Version 20.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/ErrorBoundary.tsx",
-          "frontend/src/pages/Teams.tsx",
-          "frontend/src/pages/MatchSetup.tsx",
-          "frontend/src/pages/MatchHistory.tsx",
-          "frontend/src/pages/Rules.tsx",
-          "frontend/src/pages/LiveScoring.tsx",
-          "frontend/src/pages/Scorecard.tsx"
+          "frontend/src/pages/LiveScoring.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/pages/Teams.tsx",
-          "frontend/src/pages/MatchSetup.tsx",
-          "frontend/src/pages/Rules.tsx",
-          "frontend/src/pages/LiveScoring.tsx",
-          "frontend/src/pages/Scorecard.tsx"
+          "frontend/src/pages/LiveScoring.tsx"
         ]
-      },
-      {
-        "id": "REQ-2",
-        "summary": "Ensure the backend Motoko actor in backend/main.mo compiles and is deployable without errors so the canister can be started and resume handling calls such as getAllTeams. Review the actor for any syntax errors, invalid stable variable declarations, or upgrade traps that could cause the canister to remain in a stopped state.",
-        "status": "unknown",
-        "plannedFiles": [],
-        "matchedFiles": []
       }
     ]
   },
   "changedFiles": [
-    "backend/main.mo",
     "build-request.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/components/QueryErrorState.tsx",
     "frontend/src/pages/LiveScoring.tsx",
-    "frontend/src/pages/MatchSetup.tsx",
-    "frontend/src/pages/Rules.tsx",
-    "frontend/src/pages/Scorecard.tsx",
-    "frontend/src/pages/Teams.tsx",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

@@ -1,4 +1,4 @@
-import { Player } from "@/backend";
+import type { Player } from "../backend";
 
 interface BatsmanStats {
   playerId: bigint;
@@ -9,108 +9,100 @@ interface BatsmanStats {
 }
 
 interface BatsmanStatsPanelProps {
-  striker: BatsmanStats | null;
-  nonStriker: BatsmanStats | null;
+  strikerId: bigint;
+  nonStrikerId: bigint;
+  strikerStats: BatsmanStats;
+  nonStrikerStats: BatsmanStats;
   players: Player[];
+  allPlayers?: Player[];
 }
 
-function getPlayerName(players: Player[], id: bigint): string {
-  return players.find((p) => p.id === id)?.name ?? "Unknown";
+function getPlayerName(players: Player[], id: bigint, fallback?: Player[]): string {
+  // Try primary players list first
+  const p = players.find((p) => p.id === id);
+  if (p) return p.name;
+  // Try fallback list (all players combined)
+  if (fallback) {
+    const fb = fallback.find((p) => p.id === id);
+    if (fb) return fb.name;
+  }
+  return "Unknown";
 }
 
-function calcStrikeRate(runs: number, balls: number): string {
-  if (balls === 0) return "0.00";
-  return ((runs / balls) * 100).toFixed(1);
-}
-
-interface StatRowProps {
-  label: string;
-  value: string | number;
-  highlight?: boolean;
-}
-
-function StatRow({ label, value, highlight }: StatRowProps) {
-  return (
-    <div className="flex items-center justify-between py-0.5">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      <span className={`text-sm font-semibold ${highlight ? "text-[oklch(0.65_0.18_45)]" : "text-foreground"}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-interface BatsmanCardProps {
+function BatsmanCard({
+  stats,
+  name,
+  isStriker,
+}: {
   stats: BatsmanStats;
   name: string;
   isStriker: boolean;
-}
+}) {
+  const sr =
+    stats.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : "0.00";
 
-function BatsmanCard({ stats, name, isStriker }: BatsmanCardProps) {
   return (
-    <div className={`flex-1 rounded-lg p-3 border ${isStriker ? "border-[oklch(0.65_0.18_45)] bg-[oklch(0.65_0.18_45)]/5" : "border-border bg-card"}`}>
-      <div className="flex items-center gap-1.5 mb-2">
+    <div
+      className={`rounded-lg border p-3 ${
+        isStriker ? "border-primary bg-primary/5" : "border-border"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              isStriker ? "bg-primary" : "bg-muted-foreground"
+            }`}
+          />
+          <span className="font-medium text-sm">{name}</span>
+        </div>
         {isStriker && (
-          <span className="w-2 h-2 rounded-full bg-[oklch(0.65_0.18_45)] flex-shrink-0" />
-        )}
-        <p className="font-semibold text-sm truncate">{name}</p>
-        {isStriker && (
-          <span className="ml-auto text-[10px] font-bold text-[oklch(0.65_0.18_45)] bg-[oklch(0.65_0.18_45)]/10 px-1.5 py-0.5 rounded-full">
-            *
-          </span>
+          <span className="text-xs text-destructive font-bold">*</span>
         )}
       </div>
-      <div className="score-display text-2xl font-bold text-foreground leading-none mb-1">
-        {stats.runs}
-        <span className="text-muted-foreground text-sm font-normal ml-1">({stats.balls})</span>
+      <div className="mt-1">
+        <span className="text-2xl font-bold">{stats.runs}</span>
+        <span className="text-sm text-muted-foreground ml-1">
+          ({stats.balls})
+        </span>
       </div>
-      <div className="flex gap-3 mt-1.5">
-        <div className="text-center">
-          <p className="text-[10px] text-muted-foreground">4s</p>
-          <p className="text-sm font-bold">{stats.fours}</p>
-        </div>
-        <div className="text-center">
-          <p className="text-[10px] text-muted-foreground">6s</p>
-          <p className="text-sm font-bold">{stats.sixes}</p>
-        </div>
-        <div className="text-center">
-          <p className="text-[10px] text-muted-foreground">SR</p>
-          <p className="text-sm font-bold">{calcStrikeRate(stats.runs, stats.balls)}</p>
-        </div>
+      <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+        <span>4s</span>
+        <span>6s</span>
+        <span>SR</span>
+      </div>
+      <div className="flex gap-4 text-sm font-semibold">
+        <span>{stats.fours}</span>
+        <span>{stats.sixes}</span>
+        <span>{sr}</span>
       </div>
     </div>
   );
 }
 
-export default function BatsmanStatsPanel({ striker, nonStriker, players }: BatsmanStatsPanelProps) {
-  if (!striker && !nonStriker) {
-    return (
-      <div className="cricket-card p-3">
-        <p className="text-muted-foreground text-sm text-center">No batsmen at crease</p>
-      </div>
-    );
-  }
+export default function BatsmanStatsPanel({
+  strikerId,
+  nonStrikerId,
+  strikerStats,
+  nonStrikerStats,
+  players,
+  allPlayers,
+}: BatsmanStatsPanelProps) {
+  const strikerName = getPlayerName(players, strikerId, allPlayers);
+  const nonStrikerName = getPlayerName(players, nonStrikerId, allPlayers);
 
   return (
-    <div className="cricket-card p-3">
-      <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+    <div className="bg-card rounded-xl p-4 border border-border space-y-3">
+      <h3 className="font-semibold text-sm uppercase tracking-wide text-muted-foreground">
         Batsmen
       </h3>
-      <div className="flex gap-2">
-        {striker && (
-          <BatsmanCard
-            stats={striker}
-            name={getPlayerName(players, striker.playerId)}
-            isStriker={true}
-          />
-        )}
-        {nonStriker && (
-          <BatsmanCard
-            stats={nonStriker}
-            name={getPlayerName(players, nonStriker.playerId)}
-            isStriker={false}
-          />
-        )}
+      <div className="grid grid-cols-2 gap-3">
+        <BatsmanCard stats={strikerStats} name={strikerName} isStriker={true} />
+        <BatsmanCard
+          stats={nonStrikerStats}
+          name={nonStrikerName}
+          isStriker={false}
+        />
       </div>
     </div>
   );

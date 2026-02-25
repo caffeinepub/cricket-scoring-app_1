@@ -1,186 +1,161 @@
-import { useState, useEffect } from 'react';
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
-  DialogOverlay,
-  DialogPortal,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
-import type { Player } from '@/backend';
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import type { Player } from "../backend";
 
 interface EndOfInningsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (strikerId: bigint, nonStrikerId: bigint, bowlerId: bigint) => void;
   inningsNumber: number;
-  battingTeamPlayers: bigint[];
-  bowlingTeamPlayers: bigint[];
+  battingTeamPlayers: Player[];
+  bowlingTeamPlayers: Player[];
   allPlayers: Player[];
-  score: string;
-  isOpenerSelection?: boolean;
+  score: { runs: number; wickets: number };
+  onConfirm: (
+    strikerId: bigint,
+    nonStrikerId: bigint,
+    bowlerId: bigint
+  ) => void;
 }
 
 export default function EndOfInningsModal({
   isOpen,
   onClose,
-  onConfirm,
   inningsNumber,
   battingTeamPlayers,
   bowlingTeamPlayers,
   allPlayers,
   score,
-  isOpenerSelection = false,
+  onConfirm,
 }: EndOfInningsModalProps) {
-  const [strikerId, setStrikerId] = useState<string>('');
-  const [nonStrikerId, setNonStrikerId] = useState<string>('');
-  const [bowlerId, setBowlerId] = useState<string>('');
-
-  useEffect(() => {
-    if (isOpen) {
-      setStrikerId('');
-      setNonStrikerId('');
-      setBowlerId('');
-    }
-  }, [isOpen]);
-
-  const battingElevenPlayers = allPlayers.filter(p =>
-    battingTeamPlayers.some(id => id === p.id)
-  );
-  const bowlingElevenPlayers = allPlayers.filter(p =>
-    bowlingTeamPlayers.some(id => id === p.id)
-  );
-
-  const isValid = strikerId !== '' && nonStrikerId !== '' && bowlerId !== '' && strikerId !== nonStrikerId;
+  const [striker, setStriker] = useState<string>("");
+  const [nonStriker, setNonStriker] = useState<string>("");
+  const [bowler, setBowler] = useState<string>("");
 
   const handleConfirm = () => {
-    if (!isValid) return;
-    onConfirm(BigInt(strikerId), BigInt(nonStrikerId), BigInt(bowlerId));
+    if (!striker || !nonStriker || !bowler) return;
+    onConfirm(BigInt(striker), BigInt(nonStriker), BigInt(bowler));
+    setStriker("");
+    setNonStriker("");
+    setBowler("");
   };
 
-  const title = isOpenerSelection
-    ? `Innings ${inningsNumber} — Select Opening Players`
-    : `Innings ${inningsNumber} Complete`;
+  const isInnings1End = inningsNumber === 1;
 
-  const description = isOpenerSelection
-    ? 'Select the opening batsmen (striker and non-striker) and the opening bowler to begin.'
-    : `Score: ${score}. Select the opening batsmen and bowler for Innings ${inningsNumber + 1}.`;
+  // For innings 2 setup: batting team is the team that was bowling in innings 1
+  // bowlingTeamPlayers here is the team that will bowl in innings 2 (was batting in innings 1)
+  // battingTeamPlayers here is the team that will bat in innings 2 (was bowling in innings 1)
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isOpenerSelection) onClose(); }}>
-      <DialogPortal>
-        <DialogOverlay className="bg-black/60 backdrop-blur-sm" />
-        <DialogContent
-          className="bg-background border border-border shadow-xl sm:max-w-sm"
-          onInteractOutside={e => e.preventDefault()}
-          onEscapeKeyDown={e => e.preventDefault()}
-        >
-          <DialogHeader>
-            <DialogTitle className="text-foreground">{title}</DialogTitle>
-            <DialogDescription className="text-muted-foreground">{description}</DialogDescription>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {isInnings1End ? "End of Innings 1" : "Set Up Innings 1"}
+          </DialogTitle>
+          <DialogDescription>
+            {isInnings1End
+              ? `Innings 1 complete. Score: ${score.runs}/${score.wickets}. Set up the second innings.`
+              : "Select the opening batsmen and opening bowler to start the innings."}
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-4 py-2">
-            {/* Striker */}
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">
-                Opener / Striker <span className="text-destructive">*</span>
-              </Label>
-              <Select value={strikerId} onValueChange={setStrikerId}>
-                <SelectTrigger className="bg-background border-border text-foreground">
-                  <SelectValue placeholder="Select striker..." />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {battingElevenPlayers.map(p => (
-                    <SelectItem
-                      key={p.id.toString()}
-                      value={p.id.toString()}
-                      disabled={p.id.toString() === nonStrikerId}
-                      className="text-foreground"
-                    >
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {isInnings1End && (
+          <div className="flex items-center gap-2 py-1">
+            <Badge variant="secondary">
+              Innings 1: {score.runs}/{score.wickets}
+            </Badge>
+            <Badge variant="outline">Target: {score.runs + 1}</Badge>
+          </div>
+        )}
 
-            {/* Non-Striker */}
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">
-                Non-Striker <span className="text-destructive">*</span>
-              </Label>
-              <Select value={nonStrikerId} onValueChange={setNonStrikerId}>
-                <SelectTrigger className="bg-background border-border text-foreground">
-                  <SelectValue placeholder="Select non-striker..." />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {battingElevenPlayers.map(p => (
-                    <SelectItem
-                      key={p.id.toString()}
-                      value={p.id.toString()}
-                      disabled={p.id.toString() === strikerId}
-                      className="text-foreground"
-                    >
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Bowler */}
-            <div className="space-y-1.5">
-              <Label className="text-foreground font-medium">
-                Opening Bowler <span className="text-destructive">*</span>
-              </Label>
-              <Select value={bowlerId} onValueChange={setBowlerId}>
-                <SelectTrigger className="bg-background border-border text-foreground">
-                  <SelectValue placeholder="Select bowler..." />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border">
-                  {bowlingElevenPlayers.map(p => (
-                    <SelectItem key={p.id.toString()} value={p.id.toString()} className="text-foreground">
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {strikerId !== '' && nonStrikerId !== '' && strikerId === nonStrikerId && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>Striker and non-striker must be different players.</AlertDescription>
-              </Alert>
-            )}
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>
+              Striker: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={striker} onValueChange={setStriker}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select striker..." />
+              </SelectTrigger>
+              <SelectContent>
+                {battingTeamPlayers.map((p) => (
+                  <SelectItem
+                    key={p.id.toString()}
+                    value={p.id.toString()}
+                    disabled={p.id.toString() === nonStriker}
+                  >
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <DialogFooter>
-            {!isOpenerSelection && (
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-            )}
-            <Button onClick={handleConfirm} disabled={!isValid}>
-              {isOpenerSelection ? 'Start Innings' : `Start Innings ${inningsNumber + 1}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </DialogPortal>
+          <div className="space-y-2">
+            <Label>
+              Non-Striker: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={nonStriker} onValueChange={setNonStriker}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select non-striker..." />
+              </SelectTrigger>
+              <SelectContent>
+                {battingTeamPlayers.map((p) => (
+                  <SelectItem
+                    key={p.id.toString()}
+                    value={p.id.toString()}
+                    disabled={p.id.toString() === striker}
+                  >
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              Opening Bowler: <span className="text-destructive">*</span>
+            </Label>
+            <Select value={bowler} onValueChange={setBowler}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select opening bowler..." />
+              </SelectTrigger>
+              <SelectContent>
+                {bowlingTeamPlayers.map((p) => (
+                  <SelectItem key={p.id.toString()} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={handleConfirm}
+            disabled={!striker || !nonStriker || !bowler}
+          >
+            {isInnings1End ? "Start Innings 2" : "Start Innings 1"}
+          </Button>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }
