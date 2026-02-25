@@ -1,0 +1,72 @@
+{
+  "kind": "build_request",
+  "title": "Bulk Player Name Upload & Blue/Orange Professional UI Theme for Teams",
+  "projectName": "Cricket Scorer Pro",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-14",
+      "text": "Add a bulk player name upload feature to the Teams page. Users must be able to paste a newline-separated or comma-separated list of player names into a text area, or upload a plain-text (.txt) or CSV file, and have all valid names added as players to the selected team in one action. Each parsed name should be validated (non-empty, not duplicate within the team, team does not exceed 11 players). Show a preview of parsed names before confirming, and display a summary of how many players were added or skipped with reasons.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4",
+          "msg-5"
+        ],
+        "quotes": [
+          "add option to upload name in bulk for team"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A 'Bulk Add Players' button or section is visible on the Teams page within the player management area of each team.",
+        "Users can paste a list of player names (newline or comma separated) into a textarea.",
+        "Users can upload a .txt or .csv file and have its contents parsed into individual player names.",
+        "A preview list of parsed names is shown before the user confirms the bulk add.",
+        "Names that would exceed the 11-player limit, are duplicates, or are empty are flagged and skipped.",
+        "After confirmation, all valid names are added as players to the team via the existing addPlayer backend calls.",
+        "A summary message is displayed showing how many players were added and how many were skipped with reasons.",
+        "The bulk upload UI does not break the existing individual player-add flow."
+      ]
+    },
+    {
+      "id": "REQ-15",
+      "text": "Retheme the entire app UI from the current cricket-green/cream palette to a professional blue and orange color scheme. Primary backgrounds and headers should use deep navy/dark blue tones. Accent colors, highlights, active states, buttons, and key data values should use bold orange. Neutral surfaces should use light grey-white. Update Tailwind config color tokens, CSS custom properties in index.css, and all component-level color classes (Teams page, BottomTabNavigation, Layout header, scoring dashboard, scorecard, match history, match setup, rules page, and modals) to consistently reflect the new blue-and-orange palette. Typography, spacing, and layout density should be refined to feel more professional and polished — clean sans-serif body text, sharp card borders, elevated shadows, and well-defined section hierarchy.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-5"
+        ],
+        "quotes": [
+          "change the team of the UI make it Blue and orange and more professional"
+        ]
+      },
+      "acceptanceCriteria": [
+        "The app no longer uses cricket-green or cream as primary colors anywhere in the UI.",
+        "Deep navy/dark blue is used as the primary background and header color throughout all pages.",
+        "Bold orange is consistently applied to active tab indicators, primary action buttons, score highlights, and key stat values.",
+        "Neutral light grey-white surfaces are used for cards and secondary backgrounds.",
+        "The Tailwind config and CSS custom properties are updated so the new tokens drive the entire theme.",
+        "BottomTabNavigation active state uses orange highlight on a dark blue bar.",
+        "All modals (WicketModal, EndOfInningsModal, EndOfOverModal, ConfigureTournamentRulesModal) use the new blue/orange palette.",
+        "The live scoring dashboard retains high contrast and compact data density using the new palette.",
+        "Cards and sections across all pages have clean borders, elevated shadows, and well-defined hierarchy.",
+        "No component still references old green or cream color classes as primary theme colors."
+      ]
+    }
+  ],
+  "constraints": [
+    "Do not modify any file under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui.",
+    "Bulk player upload must reuse existing addPlayer backend calls — no new backend endpoints are required for the upload itself.",
+    "The 11-player maximum per team must be enforced during bulk upload."
+  ],
+  "nonGoals": [
+    "No changes to backend data models or Motoko actor logic for the UI retheme.",
+    "No changes to the cricket rules content or tournament rules logic.",
+    "No new backend endpoints specifically for bulk upload — parsing and validation is frontend-only.",
+    "No changes to match scoring logic, live scoring dashboard functionality, or scorecard calculations."
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

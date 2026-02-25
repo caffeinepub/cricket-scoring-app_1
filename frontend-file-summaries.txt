@@ -1,0 +1,12 @@
+{
+  "frontend/src/pages/LiveScoring.tsx": "Live match scoring dashboard; uses `useRecordDelivery(matchIdBigInt)` with the original hook signature and passes only `delivery` to `mutateAsync`, with blue/orange themed delivery buttons.",
+  "frontend/src/pages/Scorecard.tsx": "Full match scorecard page showing batting and bowling figures for both innings in tabular format with extras breakdown. Includes a scoreboard summary header, innings navigation tabs, and a resume button for in-progress matches.",
+  "frontend/src/pages/MatchHistory.tsx": "Match history listing page using correct route paths (`/setup` for new match, `/match/${id}` for resume) and blue/orange professional theme with status bars and styled cards.",
+  "frontend/src/pages/Rules.tsx": "Cricket rules reference page with standard and tournament tabs; uses `CricketRuleCategory` type directly and accesses `rule.content` (not `rule.description`) matching the actual data structure.",
+  "frontend/src/data/cricketRules.ts": "Contains the static `cricketRules` array (unchanged) for standard cricket rules, plus a new `getTournamentRules(config: TournamentRules)` function that generates dynamic, config-driven tournament rule categories with template-literal interpolation of all configurable values.",
+  "frontend/src/hooks/useQueries.ts": "Restored to original signature where `useRecordDelivery(matchId)` accepts matchId as argument and `mutateAsync(delivery)` takes only a Delivery object, matching the LiveScoring usage pattern.",
+  "frontend/src/components/ConfigureTournamentRulesModal.tsx": "A Dialog modal with a scrollable form for editing all TournamentRules fields — number inputs for numeric parameters, Switch toggles for LBW and Free Hit, pre-filled from backend data with sensible defaults, and a Save button that calls `updateTournamentRules()` with a success toast.",
+  "frontend/src/App.tsx": "Main app router setup using TanStack Router with all routes registered; Layout is used as the root route component directly (no children prop) since it renders `<Outlet />` internally.",
+  "frontend/src/components/Layout.tsx": "App shell component that renders the sticky navy header, main content via `<Outlet />`, bottom navigation, and footer with caffeine.ai attribution — no children prop needed.",
+  "frontend/src/components/BottomTabNavigation.tsx": "Fixed bottom navigation bar with navy background and orange active-tab indicators; uses correct route paths (`/setup`, `/history`) matching the router configuration."
+}
