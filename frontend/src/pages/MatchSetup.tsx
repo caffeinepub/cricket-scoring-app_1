@@ -1,60 +1,94 @@
-import React, { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
-import { useGetAllTeams, useCreateMatch } from '@/hooks/useQueries';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Shield, Play, RefreshCw, ChevronRight, Settings, Zap } from 'lucide-react';
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  ChevronRight,
+  ChevronLeft,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useTeams, useCreateMatch, useSelectSquad } from "@/hooks/useQueries";
+import PlayingElevenSelector from "@/components/PlayingElevenSelector";
+import { saveMatchMeta, storeMatch } from "@/lib/matchStore";
+import type { Team } from "@/backend";
 
-type TossWinner = 'teamA' | 'teamB' | null;
-type TossChoice = 'bat' | 'bowl' | null;
+type Step = "teams" | "playing11" | "rules" | "confirm";
 
-const MatchSetup: React.FC = () => {
+const STEPS: Step[] = ["teams", "playing11", "rules", "confirm"];
+
+const STEP_LABELS: Record<Step, string> = {
+  teams: "Select Teams",
+  playing11: "Playing 11",
+  rules: "Match Rules",
+  confirm: "Confirm",
+};
+
+export default function MatchSetup() {
   const navigate = useNavigate();
-  const { data: teams = [], isLoading } = useGetAllTeams();
-  const createMatchMutation = useCreateMatch();
+  const { data: teams, isLoading: teamsLoading, isError: teamsError } = useTeams();
 
-  const [selectedTeamA, setSelectedTeamA] = useState<bigint | null>(null);
-  const [selectedTeamB, setSelectedTeamB] = useState<bigint | null>(null);
+  const [currentStep, setCurrentStep] = useState<Step>("teams");
+  const [teamAId, setTeamAId] = useState<string>("");
+  const [teamBId, setTeamBId] = useState<string>("");
+  const [squadA, setSquadA] = useState<bigint[]>([]);
+  const [squadB, setSquadB] = useState<bigint[]>([]);
   const [overs, setOvers] = useState(20);
   const [maxOversPerBowler, setMaxOversPerBowler] = useState(4);
   const [freeHitEnabled, setFreeHitEnabled] = useState(true);
-  const [tossWinner, setTossWinner] = useState<TossWinner>(null);
-  const [tossChoice, setTossChoice] = useState<TossChoice>(null);
-  const [error, setError] = useState('');
 
-  const eligibleTeams = teams.filter((t) => t.players.length >= 11);
+  const createMatch = useCreateMatch();
+  const selectSquad = useSelectSquad();
+
+  const teamList = teams ?? [];
+  const teamA = teamList.find((t) => t.id.toString() === teamAId) ?? null;
+  const teamB = teamList.find((t) => t.id.toString() === teamBId) ?? null;
+
+  const stepIndex = STEPS.indexOf(currentStep);
+
+  const canProceedFromTeams = teamAId && teamBId && teamAId !== teamBId;
+  const canProceedFromPlaying11 = squadA.length === 11 && squadB.length === 11;
+  const canProceedFromRules = overs > 0 && maxOversPerBowler > 0;
+
+  const handleNext = () => {
+    const nextIndex = stepIndex + 1;
+    if (nextIndex < STEPS.length) {
+      setCurrentStep(STEPS[nextIndex]);
+    }
+  };
+
+  const handleBack = () => {
+    const prevIndex = stepIndex - 1;
+    if (prevIndex >= 0) {
+      setCurrentStep(STEPS[prevIndex]);
+    }
+  };
 
   const handleStartMatch = async () => {
-    setError('');
-    if (!selectedTeamA || !selectedTeamB) {
-      setError('Please select both teams');
-      return;
-    }
-    if (selectedTeamA === selectedTeamB) {
-      setError('Please select two different teams');
-      return;
-    }
-    if (!tossWinner || !tossChoice) {
-      setError('Please complete the toss');
-      return;
-    }
-
-    // Determine batting/bowling order based on toss
-    let battingFirstId = selectedTeamA;
-    if (tossWinner === 'teamA' && tossChoice === 'bowl') {
-      battingFirstId = selectedTeamB;
-    } else if (tossWinner === 'teamB' && tossChoice === 'bat') {
-      battingFirstId = selectedTeamB;
-    }
-
-    const teamAId = battingFirstId;
-    const teamBId = battingFirstId === selectedTeamA ? selectedTeamB : selectedTeamA;
+    if (!teamA || !teamB) return;
 
     try {
-      const matchId = await createMatchMutation.mutateAsync({
-        teamAId,
-        teamBId,
+      // Save squads to backend
+      await selectSquad.mutateAsync({ teamId: teamA.id, squad: squadA });
+      await selectSquad.mutateAsync({ teamId: teamB.id, squad: squadB });
+
+      // Create match
+      const matchId = await createMatch.mutateAsync({
+        teamAId: teamA.id,
+        teamBId: teamB.id,
         rules: {
           oversLimit: BigInt(overs),
           powerplayOvers: [BigInt(1), BigInt(2), BigInt(3), BigInt(4), BigInt(5), BigInt(6)],
@@ -63,339 +97,433 @@ const MatchSetup: React.FC = () => {
           freeHitEnabled,
         },
       });
-      navigate({ to: `/live-scoring/${matchId}` });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create match');
+
+      const matchIdStr = matchId.toString();
+
+      // Save match metadata locally — saveMatchMeta(matchId, meta)
+      saveMatchMeta(matchIdStr, {
+        teamAId: teamA.id.toString(),
+        teamBId: teamB.id.toString(),
+        teamAName: teamA.name,
+        teamBName: teamB.name,
+        teamAPlayers: teamA.players.map((p) => ({
+          id: p.id.toString(),
+          name: p.name,
+          battingOrder: p.battingOrder.toString(),
+          isBowler: p.isBowler,
+        })),
+        teamBPlayers: teamB.players.map((p) => ({
+          id: p.id.toString(),
+          name: p.name,
+          battingOrder: p.battingOrder.toString(),
+          isBowler: p.isBowler,
+        })),
+        teamAPlayingEleven: squadA.map(String),
+        teamBPlayingEleven: squadB.map(String),
+        strikerId: squadA[0]?.toString() ?? "",
+        nonStrikerId: squadA[1]?.toString() ?? "",
+        bowlerId: squadB[0]?.toString() ?? "",
+        oversLimit: overs,
+      });
+
+      // Store match in local history — storeMatch(meta: StoredMatch)
+      storeMatch({
+        matchId: matchIdStr,
+        teamAName: teamA.name,
+        teamBName: teamB.name,
+        teamAId: teamA.id.toString(),
+        teamBId: teamB.id.toString(),
+        date: new Date().toISOString(),
+        isFinished: false,
+      });
+
+      navigate({ to: "/match/$matchId", params: { matchId: matchIdStr } });
+    } catch {
+      // error handled by mutation state
     }
   };
 
-  const getTeamById = (id: bigint | null) => teams.find((t) => t.id === id);
-
-  if (isLoading) {
+  if (teamsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-center space-y-3">
-          <div
-            className="w-10 h-10 rounded-full border-2 animate-spin mx-auto"
-            style={{ borderColor: 'oklch(0.65 0.18 45)', borderTopColor: 'transparent' }}
-          />
-          <p className="text-sm font-medium" style={{ color: 'oklch(0.5 0.03 240)' }}>
-            Loading teams...
-          </p>
-        </div>
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
   }
 
+  if (teamsError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>Failed to load teams. Please try again.</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
-    <div className="p-4 space-y-5">
-      {/* Page Header */}
-      <div
-        className="rounded-2xl p-5 shadow-navy-md"
-        style={{
-          background: 'linear-gradient(135deg, oklch(0.22 0.07 240), oklch(0.15 0.06 240))',
-        }}
-      >
-        <h1 className="font-display text-2xl font-bold" style={{ color: 'oklch(0.97 0.005 240)' }}>
-          Match Setup
-        </h1>
-        <p className="text-sm mt-0.5" style={{ color: 'oklch(0.75 0.03 240)' }}>
-          Configure teams, toss, and rules before starting
+    <div className="space-y-4">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-bold text-foreground">Match Setup</h2>
+        <p className="text-sm text-muted-foreground">
+          Step {stepIndex + 1} of {STEPS.length}: {STEP_LABELS[currentStep]}
         </p>
       </div>
 
-      {eligibleTeams.length < 2 ? (
-        <div
-          className="rounded-2xl p-8 text-center"
-          style={{
-            background: 'oklch(1 0 0)',
-            border: '2px dashed oklch(0.88 0.015 240)',
-          }}
+      {/* Step indicators */}
+      <div className="flex gap-1">
+        {STEPS.map((step, idx) => (
+          <div
+            key={step}
+            className={`flex-1 h-1.5 rounded-full transition-colors ${
+              idx <= stepIndex ? "bg-primary" : "bg-muted"
+            }`}
+          />
+        ))}
+      </div>
+
+      {/* Step content */}
+      {currentStep === "teams" && (
+        <TeamsStep
+          teams={teamList}
+          teamAId={teamAId}
+          teamBId={teamBId}
+          onTeamAChange={setTeamAId}
+          onTeamBChange={setTeamBId}
+        />
+      )}
+
+      {currentStep === "playing11" && teamA && teamB && (
+        <Playing11Step
+          teamA={teamA}
+          teamB={teamB}
+          squadA={squadA}
+          squadB={squadB}
+          onSquadAChange={setSquadA}
+          onSquadBChange={setSquadB}
+        />
+      )}
+
+      {currentStep === "rules" && (
+        <RulesStep
+          overs={overs}
+          maxOversPerBowler={maxOversPerBowler}
+          freeHitEnabled={freeHitEnabled}
+          onOversChange={setOvers}
+          onMaxOversPerBowlerChange={setMaxOversPerBowler}
+          onFreeHitChange={setFreeHitEnabled}
+        />
+      )}
+
+      {currentStep === "confirm" && teamA && teamB && (
+        <ConfirmStep
+          teamA={teamA}
+          teamB={teamB}
+          squadA={squadA}
+          squadB={squadB}
+          overs={overs}
+          maxOversPerBowler={maxOversPerBowler}
+          freeHitEnabled={freeHitEnabled}
+        />
+      )}
+
+      {/* Navigation */}
+      <div className="flex justify-between pt-2">
+        <Button
+          variant="outline"
+          onClick={handleBack}
+          disabled={stepIndex === 0}
         >
-          <Shield size={40} className="mx-auto mb-3" style={{ color: 'oklch(0.75 0.03 240)' }} />
-          <h3 className="font-display text-lg font-bold mb-2" style={{ color: 'oklch(0.22 0.07 240)' }}>
-            Not Enough Teams
-          </h3>
-          <p className="text-sm mb-4" style={{ color: 'oklch(0.5 0.03 240)' }}>
-            You need at least 2 teams with 11 players each to start a match.
-          </p>
+          <ChevronLeft size={16} className="mr-1" />
+          Back
+        </Button>
+
+        {currentStep !== "confirm" ? (
           <Button
-            onClick={() => navigate({ to: '/teams' })}
-            style={{
-              background: 'oklch(0.65 0.18 45)',
-              color: 'oklch(0.1 0.02 240)',
-              fontWeight: 600,
-            }}
+            onClick={handleNext}
+            disabled={
+              (currentStep === "teams" && !canProceedFromTeams) ||
+              (currentStep === "playing11" && !canProceedFromPlaying11) ||
+              (currentStep === "rules" && !canProceedFromRules)
+            }
           >
-            Manage Teams
+            Next
+            <ChevronRight size={16} className="ml-1" />
           </Button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {/* Team Selection */}
-          <div
-            className="rounded-xl p-4 shadow-card"
-            style={{ background: 'oklch(1 0 0)', border: '1px solid oklch(0.88 0.015 240)' }}
-          >
-            <h2 className="font-display text-lg font-bold mb-3 flex items-center gap-2" style={{ color: 'oklch(0.22 0.07 240)' }}>
-              <Shield size={18} style={{ color: 'oklch(0.65 0.18 45)' }} />
-              Select Teams
-            </h2>
-
-            <div className="space-y-3">
-              {/* Team A */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                  Team A (Batting First)
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {eligibleTeams.map((team) => (
-                    <button
-                      key={team.id.toString()}
-                      onClick={() => {
-                        setSelectedTeamA(team.id);
-                        if (selectedTeamB === team.id) setSelectedTeamB(null);
-                      }}
-                      disabled={selectedTeamB === team.id}
-                      className="flex items-center gap-2 p-3 rounded-lg text-left transition-all duration-150"
-                      style={{
-                        border: selectedTeamA === team.id
-                          ? '2px solid oklch(0.65 0.18 45)'
-                          : '1px solid oklch(0.88 0.015 240)',
-                        background: selectedTeamA === team.id
-                          ? 'oklch(0.65 0.18 45 / 0.08)'
-                          : 'oklch(0.97 0.005 240)',
-                        opacity: selectedTeamB === team.id ? 0.4 : 1,
-                      }}
-                    >
-                      <div
-                        className="w-6 h-6 rounded flex-shrink-0"
-                        style={{ background: team.color || 'oklch(0.22 0.07 240)' }}
-                      />
-                      <span className="text-sm font-semibold truncate" style={{ color: 'oklch(0.22 0.07 240)' }}>
-                        {team.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Team B */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                  Team B (Bowling First)
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {eligibleTeams.map((team) => (
-                    <button
-                      key={team.id.toString()}
-                      onClick={() => {
-                        setSelectedTeamB(team.id);
-                        if (selectedTeamA === team.id) setSelectedTeamA(null);
-                      }}
-                      disabled={selectedTeamA === team.id}
-                      className="flex items-center gap-2 p-3 rounded-lg text-left transition-all duration-150"
-                      style={{
-                        border: selectedTeamB === team.id
-                          ? '2px solid oklch(0.65 0.18 45)'
-                          : '1px solid oklch(0.88 0.015 240)',
-                        background: selectedTeamB === team.id
-                          ? 'oklch(0.65 0.18 45 / 0.08)'
-                          : 'oklch(0.97 0.005 240)',
-                        opacity: selectedTeamA === team.id ? 0.4 : 1,
-                      }}
-                    >
-                      <div
-                        className="w-6 h-6 rounded flex-shrink-0"
-                        style={{ background: team.color || 'oklch(0.22 0.07 240)' }}
-                      />
-                      <span className="text-sm font-semibold truncate" style={{ color: 'oklch(0.22 0.07 240)' }}>
-                        {team.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Toss */}
-          {selectedTeamA && selectedTeamB && (
-            <div
-              className="rounded-xl p-4 shadow-card"
-              style={{ background: 'oklch(1 0 0)', border: '1px solid oklch(0.88 0.015 240)' }}
-            >
-              <h2 className="font-display text-lg font-bold mb-3 flex items-center gap-2" style={{ color: 'oklch(0.22 0.07 240)' }}>
-                <RefreshCw size={18} style={{ color: 'oklch(0.65 0.18 45)' }} />
-                Toss
-              </h2>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                    Toss Winner
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['teamA', 'teamB'] as const).map((side) => {
-                      const team = side === 'teamA' ? getTeamById(selectedTeamA) : getTeamById(selectedTeamB);
-                      return (
-                        <button
-                          key={side}
-                          onClick={() => setTossWinner(side)}
-                          className="p-3 rounded-lg text-sm font-semibold transition-all duration-150"
-                          style={{
-                            border: tossWinner === side
-                              ? '2px solid oklch(0.65 0.18 45)'
-                              : '1px solid oklch(0.88 0.015 240)',
-                            background: tossWinner === side
-                              ? 'oklch(0.65 0.18 45 / 0.08)'
-                              : 'oklch(0.97 0.005 240)',
-                            color: 'oklch(0.22 0.07 240)',
-                          }}
-                        >
-                          {team?.name || side}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {tossWinner && (
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                      Chose to
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['bat', 'bowl'] as const).map((choice) => (
-                        <button
-                          key={choice}
-                          onClick={() => setTossChoice(choice)}
-                          className="p-3 rounded-lg text-sm font-semibold capitalize transition-all duration-150"
-                          style={{
-                            border: tossChoice === choice
-                              ? '2px solid oklch(0.65 0.18 45)'
-                              : '1px solid oklch(0.88 0.015 240)',
-                            background: tossChoice === choice
-                              ? 'oklch(0.65 0.18 45 / 0.08)'
-                              : 'oklch(0.97 0.005 240)',
-                            color: 'oklch(0.22 0.07 240)',
-                          }}
-                        >
-                          {choice}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Match Rules */}
-          <div
-            className="rounded-xl p-4 shadow-card"
-            style={{ background: 'oklch(1 0 0)', border: '1px solid oklch(0.88 0.015 240)' }}
-          >
-            <h2 className="font-display text-lg font-bold mb-3 flex items-center gap-2" style={{ color: 'oklch(0.22 0.07 240)' }}>
-              <Settings size={18} style={{ color: 'oklch(0.65 0.18 45)' }} />
-              Match Rules
-            </h2>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                  Total Overs
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={overs}
-                  onChange={(e) => setOvers(Number(e.target.value))}
-                  style={{ border: '1px solid oklch(0.88 0.015 240)' }}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                  Max Overs/Bowler
-                </label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={overs}
-                  value={maxOversPerBowler}
-                  onChange={(e) => setMaxOversPerBowler(Number(e.target.value))}
-                  style={{ border: '1px solid oklch(0.88 0.015 240)' }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold" style={{ color: 'oklch(0.22 0.07 240)' }}>
-                  Free Hit on No-Ball
-                </p>
-                <p className="text-xs" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                  Next ball after no-ball is a free hit
-                </p>
-              </div>
-              <button
-                onClick={() => setFreeHitEnabled(!freeHitEnabled)}
-                className="relative w-12 h-6 rounded-full transition-all duration-200"
-                style={{
-                  background: freeHitEnabled ? 'oklch(0.65 0.18 45)' : 'oklch(0.75 0.03 240)',
-                }}
-              >
-                <span
-                  className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-200"
-                  style={{ left: freeHitEnabled ? '26px' : '2px' }}
-                />
-              </button>
-            </div>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div
-              className="rounded-lg px-4 py-3 text-sm font-medium"
-              style={{
-                background: 'oklch(0.55 0.22 25 / 0.08)',
-                border: '1px solid oklch(0.55 0.22 25 / 0.3)',
-                color: 'oklch(0.45 0.18 25)',
-              }}
-            >
-              {error}
-            </div>
-          )}
-
-          {/* Start Match Button */}
+        ) : (
           <Button
             onClick={handleStartMatch}
-            disabled={createMatchMutation.isPending}
-            className="w-full py-4 text-base font-bold shadow-orange-glow"
-            style={{
-              background: 'oklch(0.65 0.18 45)',
-              color: 'oklch(0.1 0.02 240)',
-              border: 'none',
-              borderRadius: '0.75rem',
-            }}
+            disabled={
+              createMatch.isPending ||
+              selectSquad.isPending ||
+              !teamA ||
+              !teamB
+            }
           >
-            {createMatchMutation.isPending ? (
-              <>
-                <span className="animate-spin mr-2">⟳</span>
-                Creating Match...
-              </>
-            ) : (
-              <>
-                <Play size={18} className="mr-2" />
-                Start Match
-              </>
+            {(createMatch.isPending || selectSquad.isPending) && (
+              <Loader2 size={14} className="mr-1 animate-spin" />
             )}
+            Start Match
           </Button>
-        </div>
+        )}
+      </div>
+
+      {/* Error display */}
+      {(createMatch.isError || selectSquad.isError) && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {createMatch.error instanceof Error
+              ? createMatch.error.message
+              : selectSquad.error instanceof Error
+              ? selectSquad.error.message
+              : "Failed to start match"}
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
-};
+}
 
-export default MatchSetup;
+// ─── Step Components ──────────────────────────────────────────────────────────
+
+function TeamsStep({
+  teams,
+  teamAId,
+  teamBId,
+  onTeamAChange,
+  onTeamBChange,
+}: {
+  teams: Team[];
+  teamAId: string;
+  teamBId: string;
+  onTeamAChange: (id: string) => void;
+  onTeamBChange: (id: string) => void;
+}) {
+  if (teams.length < 2) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <AlertCircle size={40} className="mx-auto mb-3 text-muted-foreground/40" />
+          <p className="text-muted-foreground font-medium">Not enough teams</p>
+          <p className="text-sm text-muted-foreground/70 mt-1">
+            You need at least 2 teams to set up a match.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Select Teams</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Team A (Batting First)</Label>
+          <Select value={teamAId} onValueChange={onTeamAChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Team A" />
+            </SelectTrigger>
+            <SelectContent>
+              {teams
+                .filter((t) => t.id.toString() !== teamBId)
+                .map((team) => (
+                  <SelectItem key={team.id.toString()} value={team.id.toString()}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Team B (Bowling First)</Label>
+          <Select value={teamBId} onValueChange={onTeamBChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select Team B" />
+            </SelectTrigger>
+            <SelectContent>
+              {teams
+                .filter((t) => t.id.toString() !== teamAId)
+                .map((team) => (
+                  <SelectItem key={team.id.toString()} value={team.id.toString()}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Playing11Step({
+  teamA,
+  teamB,
+  squadA,
+  squadB,
+  onSquadAChange,
+  onSquadBChange,
+}: {
+  teamA: Team;
+  teamB: Team;
+  squadA: bigint[];
+  squadB: bigint[];
+  onSquadAChange: (squad: bigint[]) => void;
+  onSquadBChange: (squad: bigint[]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{teamA.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* PlayingElevenSelector expects: players, selected, onChange */}
+          <PlayingElevenSelector
+            players={teamA.players}
+            selected={squadA}
+            onChange={onSquadAChange}
+          />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">{teamB.name}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PlayingElevenSelector
+            players={teamB.players}
+            selected={squadB}
+            onChange={onSquadBChange}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RulesStep({
+  overs,
+  maxOversPerBowler,
+  freeHitEnabled,
+  onOversChange,
+  onMaxOversPerBowlerChange,
+  onFreeHitChange,
+}: {
+  overs: number;
+  maxOversPerBowler: number;
+  freeHitEnabled: boolean;
+  onOversChange: (v: number) => void;
+  onMaxOversPerBowlerChange: (v: number) => void;
+  onFreeHitChange: (v: boolean) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Match Rules</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="overs">Total Overs</Label>
+          <Input
+            id="overs"
+            type="number"
+            min={1}
+            max={50}
+            value={overs}
+            onChange={(e) => onOversChange(Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="max-overs-bowler">Max Overs per Bowler</Label>
+          <Input
+            id="max-overs-bowler"
+            type="number"
+            min={1}
+            max={overs}
+            value={maxOversPerBowler}
+            onChange={(e) => onMaxOversPerBowlerChange(Number(e.target.value))}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            id="free-hit"
+            type="checkbox"
+            checked={freeHitEnabled}
+            onChange={(e) => onFreeHitChange(e.target.checked)}
+            className="w-4 h-4"
+          />
+          <Label htmlFor="free-hit">Enable Free Hit on No Ball</Label>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConfirmStep({
+  teamA,
+  teamB,
+  squadA,
+  squadB,
+  overs,
+  maxOversPerBowler,
+  freeHitEnabled,
+}: {
+  teamA: Team;
+  teamB: Team;
+  squadA: bigint[];
+  squadB: bigint[];
+  overs: number;
+  maxOversPerBowler: number;
+  freeHitEnabled: boolean;
+}) {
+  return (
+    <div className="space-y-3">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-500" />
+            Match Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex justify-between items-center">
+            <div className="text-center flex-1">
+              <p className="font-bold text-foreground">{teamA.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {squadA.length} players selected
+              </p>
+            </div>
+            <div className="text-muted-foreground font-bold">vs</div>
+            <div className="text-center flex-1">
+              <p className="font-bold text-foreground">{teamB.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {squadB.length} players selected
+              </p>
+            </div>
+          </div>
+          <div className="border-t pt-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Overs</span>
+              <span className="font-medium">{overs}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Max overs/bowler</span>
+              <span className="font-medium">{maxOversPerBowler}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Free Hit</span>
+              <Badge variant={freeHitEnabled ? "default" : "secondary"}>
+                {freeHitEnabled ? "Enabled" : "Disabled"}
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

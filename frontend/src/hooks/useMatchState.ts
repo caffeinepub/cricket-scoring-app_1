@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useGetMatch } from './useQueries';
+import { useMatch } from './useQueries';
 import { getLocalMatchState, saveLocalMatchState } from '../lib/matchStore';
-import { calcBatsmanStats, calcBowlerStats, formatOvers } from '../lib/matchUtils';
+import { calcBatsmanStats, calcBowlerStats } from '../lib/matchUtils';
 import type { Match, Team, BallByBallRecord } from '../backend';
 
 export interface MatchStateResult {
@@ -28,7 +28,7 @@ export interface MatchStateResult {
 }
 
 export function useMatchState(matchId: string, teamA: Team | null, teamB: Team | null): MatchStateResult {
-  const { data: match, isLoading } = useGetMatch(matchId ? BigInt(matchId) : null);
+  const { data: match, isLoading } = useMatch(matchId ? BigInt(matchId) : null);
 
   const [strikerId, setStrikerIdState] = useState<bigint | null>(null);
   const [nonStrikerId, setNonStrikerIdState] = useState<bigint | null>(null);
@@ -39,95 +39,72 @@ export function useMatchState(matchId: string, teamA: Team | null, teamB: Team |
     if (!matchId) return;
     const local = getLocalMatchState(matchId);
     if (local) {
-      setStrikerIdState(BigInt(local.strikerId));
-      setNonStrikerIdState(BigInt(local.nonStrikerId));
-      setBowlerIdState(BigInt(local.bowlerId));
+      setStrikerIdState(local.strikerId !== null ? BigInt(local.strikerId) : null);
+      setNonStrikerIdState(local.nonStrikerId !== null ? BigInt(local.nonStrikerId) : null);
+      setBowlerIdState(local.bowlerId !== null ? BigInt(local.bowlerId) : null);
     }
   }, [matchId]);
 
+  const persistState = (
+    newStrikerId: bigint | null,
+    newNonStrikerId: bigint | null,
+    newBowlerId: bigint | null
+  ) => {
+    if (!matchId) return;
+    saveLocalMatchState(matchId, {
+      strikerId: newStrikerId !== null ? newStrikerId.toString() : null,
+      nonStrikerId: newNonStrikerId !== null ? newNonStrikerId.toString() : null,
+      bowlerId: newBowlerId !== null ? newBowlerId.toString() : null,
+    });
+  };
+
   const setStrikerId = (id: bigint) => {
     setStrikerIdState(id);
-    if (matchId) {
-      const local = getLocalMatchState(matchId);
-      saveLocalMatchState({
-        matchId,
-        strikerId: id.toString(),
-        nonStrikerId: nonStrikerId?.toString() ?? '',
-        bowlerId: bowlerId?.toString() ?? '',
-        currentInnings: local?.currentInnings ?? 1,
-      });
-    }
+    persistState(id, nonStrikerId, bowlerId);
   };
 
   const setNonStrikerId = (id: bigint) => {
     setNonStrikerIdState(id);
-    if (matchId) {
-      const local = getLocalMatchState(matchId);
-      saveLocalMatchState({
-        matchId,
-        strikerId: strikerId?.toString() ?? '',
-        nonStrikerId: id.toString(),
-        bowlerId: bowlerId?.toString() ?? '',
-        currentInnings: local?.currentInnings ?? 1,
-      });
-    }
+    persistState(strikerId, id, bowlerId);
   };
 
   const setBowlerId = (id: bigint) => {
     setBowlerIdState(id);
-    if (matchId) {
-      const local = getLocalMatchState(matchId);
-      saveLocalMatchState({
-        matchId,
-        strikerId: strikerId?.toString() ?? '',
-        nonStrikerId: nonStrikerId?.toString() ?? '',
-        bowlerId: id.toString(),
-        currentInnings: local?.currentInnings ?? 1,
-      });
-    }
+    persistState(strikerId, nonStrikerId, id);
   };
 
   const swapBatsmen = () => {
     const tmp = strikerId;
     setStrikerIdState(nonStrikerId);
     setNonStrikerIdState(tmp);
-    if (matchId) {
-      const local = getLocalMatchState(matchId);
-      saveLocalMatchState({
-        matchId,
-        strikerId: nonStrikerId?.toString() ?? '',
-        nonStrikerId: strikerId?.toString() ?? '',
-        bowlerId: bowlerId?.toString() ?? '',
-        currentInnings: local?.currentInnings ?? 1,
-      });
-    }
+    persistState(nonStrikerId, strikerId, bowlerId);
   };
 
   const deliveries = match?.deliveries ?? [];
 
-  const totalRuns = useMemo(() =>
-    deliveries.reduce((s, d) => s + Number(d.runs), 0),
+  const totalRuns = useMemo(
+    () => deliveries.reduce((s, d) => s + Number(d.runs), 0),
     [deliveries]
   );
 
-  const wickets = useMemo(() =>
-    deliveries.filter(d => d.wicket !== undefined && d.wicket !== null).length,
+  const wickets = useMemo(
+    () => deliveries.filter((d) => d.wicket !== undefined && d.wicket !== null).length,
     [deliveries]
   );
 
-  const legalBalls = useMemo(() =>
-    deliveries.filter(d => !d.isWide && !d.isNoBall).length,
+  const legalBalls = useMemo(
+    () => deliveries.filter((d) => !d.isWide && !d.isNoBall).length,
     [deliveries]
   );
 
   const currentOver = useMemo(() => Math.floor(legalBalls / 6) + 1, [legalBalls]);
 
-  const currentOverBalls = useMemo(() =>
-    deliveries.filter(d => Number(d.overNumber) === currentOver),
+  const currentOverBalls = useMemo(
+    () => deliveries.filter((d) => Number(d.overNumber) === currentOver),
     [deliveries, currentOver]
   );
 
-  const legalBallsInCurrentOver = currentOverBalls.filter(d => !d.isWide && !d.isNoBall).length;
+  const legalBallsInCurrentOver = currentOverBalls.filter((d) => !d.isWide && !d.isNoBall).length;
   const isOverComplete = legalBallsInCurrentOver >= 6;
 
   const oversLimit = match ? Number(match.rules.oversLimit) : 20;
@@ -158,9 +135,9 @@ export function useMatchState(matchId: string, teamA: Team | null, teamB: Team |
   const battingTeam = battingTeamId === match?.teamAId ? teamA : teamB;
   const bowlingTeam = bowlingTeamId === match?.teamAId ? teamA : teamB;
 
-  const strikerPlayer = battingTeam?.players.find(p => p.id === strikerId) ?? null;
-  const nonStrikerPlayer = battingTeam?.players.find(p => p.id === nonStrikerId) ?? null;
-  const bowlerPlayer = bowlingTeam?.players.find(p => p.id === bowlerId) ?? null;
+  const strikerPlayer = battingTeam?.players.find((p) => p.id === strikerId) ?? null;
+  const nonStrikerPlayer = battingTeam?.players.find((p) => p.id === nonStrikerId) ?? null;
+  const bowlerPlayer = bowlingTeam?.players.find((p) => p.id === bowlerId) ?? null;
 
   const strikerStats = strikerPlayer
     ? calcBatsmanStats(deliveries, strikerId!, strikerPlayer.name)

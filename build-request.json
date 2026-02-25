@@ -1,69 +1,95 @@
 {
   "kind": "build_request",
-  "title": "Bulk Player Name Upload & Blue/Orange Professional UI Theme for Teams",
-  "projectName": "Cricket Scorer Pro",
-  "priority": "normal",
+  "title": "Fix broken page navigation and rendering after Version 11",
+  "priority": "high",
   "requirements": [
     {
-      "id": "REQ-14",
-      "text": "Add a bulk player name upload feature to the Teams page. Users must be able to paste a newline-separated or comma-separated list of player names into a text area, or upload a plain-text (.txt) or CSV file, and have all valid names added as players to the selected team in one action. Each parsed name should be validated (non-empty, not duplicate within the team, team does not exceed 11 players). Show a preview of parsed names before confirming, and display a summary of how many players were added or skipped with reasons.",
+      "id": "REQ-28",
+      "text": "Audit and fix the TanStack Router configuration in frontend/src/App.tsx to ensure all registered routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) render their page components correctly when navigated to. Investigate and resolve any broken route definitions, missing lazy imports, incorrect path parameters, or misconfigured route trees that would cause pages to appear blank or fail to mount.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-4",
-          "msg-5"
+          "msg-4"
         ],
         "quotes": [
-          "add option to upload name in bulk for team"
+          "not working Pages are not opening"
         ]
       },
       "acceptanceCriteria": [
-        "A 'Bulk Add Players' button or section is visible on the Teams page within the player management area of each team.",
-        "Users can paste a list of player names (newline or comma separated) into a textarea.",
-        "Users can upload a .txt or .csv file and have its contents parsed into individual player names.",
-        "A preview list of parsed names is shown before the user confirms the bulk add.",
-        "Names that would exceed the 11-player limit, are duplicates, or are empty are flagged and skipped.",
-        "After confirmation, all valid names are added as players to the team via the existing addPlayer backend calls.",
-        "A summary message is displayed showing how many players were added and how many were skipped with reasons.",
-        "The bulk upload UI does not break the existing individual player-add flow."
+        "Navigating to the Teams tab renders the Teams page without a blank screen or crash",
+        "Navigating to the Match Setup tab renders the MatchSetup page without a blank screen or crash",
+        "Navigating to the History tab renders the MatchHistory page without a blank screen or crash",
+        "Navigating to the Rules tab renders the Rules page without a blank screen or crash",
+        "Navigating to the Home tab renders the default home/match-history page without a blank screen or crash",
+        "All bottom tab navigation links resolve to the correct page components"
       ]
     },
     {
-      "id": "REQ-15",
-      "text": "Retheme the entire app UI from the current cricket-green/cream palette to a professional blue and orange color scheme. Primary backgrounds and headers should use deep navy/dark blue tones. Accent colors, highlights, active states, buttons, and key data values should use bold orange. Neutral surfaces should use light grey-white. Update Tailwind config color tokens, CSS custom properties in index.css, and all component-level color classes (Teams page, BottomTabNavigation, Layout header, scoring dashboard, scorecard, match history, match setup, rules page, and modals) to consistently reflect the new blue-and-orange palette. Typography, spacing, and layout density should be refined to feel more professional and polished — clean sans-serif body text, sharp card borders, elevated shadows, and well-defined section hierarchy.",
+      "id": "REQ-29",
+      "text": "Audit all page-level components (Teams.tsx, MatchSetup.tsx, MatchHistory.tsx, LiveScoring.tsx, Scorecard.tsx, Rules.tsx) for runtime errors that prevent rendering. Fix any issues including: undefined/null data access before React Query results have loaded (add proper loading and error guards), broken or circular imports, missing default exports, and any top-level exceptions thrown during component initialization. Each page must render a visible loading state while data is being fetched and must not crash or display a blank screen.",
       "target": "frontend",
       "source": {
         "messageIds": [
-          "msg-5"
+          "msg-4"
         ],
         "quotes": [
-          "change the team of the UI make it Blue and orange and more professional"
+          "not working Pages are not opening"
         ]
       },
       "acceptanceCriteria": [
-        "The app no longer uses cricket-green or cream as primary colors anywhere in the UI.",
-        "Deep navy/dark blue is used as the primary background and header color throughout all pages.",
-        "Bold orange is consistently applied to active tab indicators, primary action buttons, score highlights, and key stat values.",
-        "Neutral light grey-white surfaces are used for cards and secondary backgrounds.",
-        "The Tailwind config and CSS custom properties are updated so the new tokens drive the entire theme.",
-        "BottomTabNavigation active state uses orange highlight on a dark blue bar.",
-        "All modals (WicketModal, EndOfInningsModal, EndOfOverModal, ConfigureTournamentRulesModal) use the new blue/orange palette.",
-        "The live scoring dashboard retains high contrast and compact data density using the new palette.",
-        "Cards and sections across all pages have clean borders, elevated shadows, and well-defined hierarchy.",
-        "No component still references old green or cream color classes as primary theme colors."
+        "Each page shows a loading indicator while backend queries are in-flight",
+        "Each page shows a meaningful error state if the backend query fails, rather than crashing",
+        "No page throws an unhandled runtime error when its data is undefined or null on first render",
+        "All page components have valid default exports",
+        "No circular import chains exist among page or component files"
+      ]
+    },
+    {
+      "id": "REQ-30",
+      "text": "Audit the useActor hook (frontend/src/hooks/useActor.ts) and the useQueries hooks (frontend/src/hooks/useQueries.ts) to ensure the backend actor is initialized correctly even when the user is not authenticated. Any query or mutation that attempts to call actor methods before the actor is ready must handle the uninitialized state gracefully (e.g., by keeping query enabled flags false until the actor is available) rather than throwing errors that propagate and break page rendering.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "not working Pages are not opening"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Pages that depend on backend queries do not crash when the actor is not yet initialized",
+        "React Query hooks return loading or idle state rather than throwing when the actor is undefined",
+        "Once the actor becomes available, queries re-fetch and pages populate with data automatically"
+      ]
+    },
+    {
+      "id": "REQ-31",
+      "text": "Audit the Layout component (frontend/src/components/Layout.tsx) and the BottomTabNavigation component (frontend/src/components/BottomTabNavigation.tsx) to ensure the router outlet renders child page content correctly. Verify the Outlet component from TanStack Router is placed correctly inside the Layout, that no conditional logic inadvertently hides the outlet or replaces it with an empty fragment, and that the bottom tab navigation links use the correct href/to values matching the defined routes in App.tsx.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "not working Pages are not opening"
+        ]
+      },
+      "acceptanceCriteria": [
+        "The main content area of the Layout renders the active route's page component",
+        "Bottom tab navigation links navigate to the correct routes without a full page reload",
+        "No page content is hidden by an incorrect conditional in Layout or BottomTabNavigation"
       ]
     }
   ],
   "constraints": [
-    "Do not modify any file under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui.",
-    "Bulk player upload must reuse existing addPlayer backend calls — no new backend endpoints are required for the upload itself.",
-    "The 11-player maximum per team must be enforced during bulk upload."
+    "Do not modify files under frontend/src/hooks/useInternetIdentity.ts, frontend/src/hooks/useActor.ts, frontend/src/main.tsx, or frontend/src/components/ui",
+    "Preserve all existing route definitions and do not remove any page components"
   ],
   "nonGoals": [
-    "No changes to backend data models or Motoko actor logic for the UI retheme.",
-    "No changes to the cricket rules content or tournament rules logic.",
-    "No new backend endpoints specifically for bulk upload — parsing and validation is frontend-only.",
-    "No changes to match scoring logic, live scoring dashboard functionality, or scorecard calculations."
+    "Adding new features or pages",
+    "Changing the visual theme or styling",
+    "Modifying backend data models or Motoko logic",
+    "Changes to match scoring, team management, or rules content"
   ],
   "imageRequirements": {
     "required": [],

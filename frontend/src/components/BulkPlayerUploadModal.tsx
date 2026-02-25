@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { Upload, CheckCircle, XCircle, AlertTriangle, Users, FileText } from 'lucide-react';
 import { useAddPlayer } from '@/hooks/useQueries';
 import type { Player } from '@/backend';
@@ -26,13 +25,11 @@ interface BulkPlayerUploadModalProps {
 
 interface ParsedPlayer {
   name: string;
-  status: 'valid' | 'duplicate' | 'empty' | 'too-long' | 'too-short' | 'no-space' | 'limit-exceeded';
+  status: 'valid' | 'duplicate' | 'empty' | 'too-long' | 'too-short' | 'no-space';
   reason?: string;
 }
 
 type UploadStep = 'input' | 'preview' | 'result';
-
-const MAX_PLAYERS = 11;
 
 function parseName(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ');
@@ -49,9 +46,8 @@ function validateAndParsePlayers(
 
   const existingNames = new Set(currentPlayers.map((p) => p.name.toLowerCase()));
   const seenInBatch = new Set<string>();
-  const currentCount = currentPlayers.length;
 
-  return lines.map((name, idx) => {
+  return lines.map((name) => {
     if (!name || name.length === 0) {
       return { name: name || '(empty)', status: 'empty', reason: 'Empty name' };
     }
@@ -69,21 +65,6 @@ function validateAndParsePlayers(
     }
     if (seenInBatch.has(name.toLowerCase())) {
       return { name, status: 'duplicate', reason: 'Duplicate in upload list' };
-    }
-
-    // Count how many valid players we've seen so far
-    const validSoFar = lines.slice(0, idx).filter((n, i) => {
-      const p = parseName(n);
-      return (
-        p.length >= 3 &&
-        p.length <= 50 &&
-        p.includes(' ') &&
-        !existingNames.has(p.toLowerCase())
-      );
-    }).length;
-
-    if (currentCount + validSoFar >= MAX_PLAYERS) {
-      return { name, status: 'limit-exceeded', reason: `Team already at ${MAX_PLAYERS} player limit` };
     }
 
     seenInBatch.add(name.toLowerCase());
@@ -121,11 +102,6 @@ const statusConfig: Record<ParsedPlayer['status'], { icon: React.ReactNode; colo
     icon: <AlertTriangle size={14} />,
     color: 'oklch(0.55 0.18 80)',
     label: 'No space',
-  },
-  'limit-exceeded': {
-    icon: <XCircle size={14} />,
-    color: 'oklch(0.55 0.22 25)',
-    label: 'Limit exceeded',
   },
 };
 
@@ -174,7 +150,6 @@ const BulkPlayerUploadModal: React.FC<BulkPlayerUploadModalProps> = ({
       setRawText(content || '');
     };
     reader.readAsText(file);
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -266,7 +241,6 @@ const BulkPlayerUploadModal: React.FC<BulkPlayerUploadModalProps> = ({
               <ul className="list-disc list-inside space-y-0.5 text-xs">
                 <li>Each name must have at least one space (e.g., "John Smith")</li>
                 <li>3–50 characters per name</li>
-                <li>Max {MAX_PLAYERS} players per team</li>
                 <li>Duplicates will be skipped automatically</li>
               </ul>
             </div>
@@ -354,7 +328,7 @@ const BulkPlayerUploadModal: React.FC<BulkPlayerUploadModalProps> = ({
                 className="ml-auto text-xs"
                 style={{ color: 'oklch(0.5 0.03 240)' }}
               >
-                Team: {currentPlayers.length}/{MAX_PLAYERS}
+                Current: {currentPlayers.length} players
               </div>
             </div>
 
@@ -519,13 +493,13 @@ const BulkPlayerUploadModal: React.FC<BulkPlayerUploadModalProps> = ({
                 onClick={handleReset}
                 style={{ borderColor: 'oklch(0.88 0.015 240)', color: 'oklch(0.35 0.05 240)' }}
               >
-                Upload More
+                Add More
               </Button>
               <Button
                 onClick={() => handleClose(false)}
                 style={{
-                  background: 'oklch(0.22 0.07 240)',
-                  color: 'oklch(0.97 0.005 240)',
+                  background: 'oklch(0.65 0.18 45)',
+                  color: 'oklch(0.1 0.02 240)',
                   fontWeight: 600,
                 }}
               >

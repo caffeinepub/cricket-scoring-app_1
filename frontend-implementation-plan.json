@@ -1,139 +1,104 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Bulk Player Name Upload & Blue/Orange Professional UI Theme for Teams",
+  "title": "Fix broken page navigation and rendering after Version 11",
   "requirements": [
     {
-      "id": "REQ-14",
-      "summary": "Add bulk player name upload feature to Teams page with paste, file upload, preview, validation, and summary",
+      "id": "REQ-28",
+      "summary": "Audit and fix the TanStack Router configuration in App.tsx to ensure all registered routes render their page components correctly when navigated to",
       "acceptanceCriteria": [
-        "A 'Bulk Add Players' button or section is visible on the Teams page within the player management area of each team.",
-        "Users can paste a list of player names (newline or comma separated) into a textarea.",
-        "Users can upload a .txt or .csv file and have its contents parsed into individual player names.",
-        "A preview list of parsed names is shown before the user confirms the bulk add.",
-        "Names that would exceed the 11-player limit, are duplicates, or are empty are flagged and skipped.",
-        "After confirmation, all valid names are added as players to the team via the existing addPlayer backend calls.",
-        "A summary message is displayed showing how many players were added and how many were skipped with reasons.",
-        "The bulk upload UI does not break the existing individual player-add flow."
+        "Navigating to the Teams tab renders the Teams page without a blank screen or crash",
+        "Navigating to the Match Setup tab renders the MatchSetup page without a blank screen or crash",
+        "Navigating to the History tab renders the MatchHistory page without a blank screen or crash",
+        "Navigating to the Rules tab renders the Rules page without a blank screen or crash",
+        "Navigating to the Home tab renders the default home/match-history page without a blank screen or crash",
+        "All bottom tab navigation links resolve to the correct page components"
       ],
       "file_operations": [
         {
-          "path": "frontend/src/components/BulkPlayerUploadModal.tsx",
-          "operation": "create",
-          "description": "Create a modal component for bulk player upload that includes a textarea for pasting names, a file input for .txt/.csv uploads, parsing logic to split on newlines and commas, validation rules (non-empty, non-duplicate within team, team size ≤11), a preview list with validation status indicators, confirm/cancel actions, and a results summary showing added/skipped counts with reasons. Use the shadcn/ui Dialog, Textarea, Button, Alert, and ScrollArea components. The modal receives teamId and current players as props, calls the addPlayer backend method via useAddPlayer hook from useQueries.ts for each valid name sequentially, and displays the summary after all operations complete."
-        },
-        {
-          "path": "frontend/src/pages/Teams.tsx",
+          "path": "frontend/src/App.tsx",
           "operation": "modify",
-          "description": "Add a 'Bulk Add Players' button within each team's player management section that opens the BulkPlayerUploadModal when clicked. Pass the teamId and current players array to the modal. Ensure the button is clearly labeled and positioned near the existing individual player add input. After the modal closes successfully, trigger a refetch of the team data to display newly added players. Maintain the existing individual player add flow unchanged."
+          "description": "Review and fix the TanStack Router route tree configuration. Verify that all route definitions (Home/MatchHistory at '/', Teams at '/teams', MatchSetup at '/setup', LiveScoring at '/match/:matchId', Scorecard at '/scorecard/:matchId', Rules at '/rules') are correctly registered with proper lazy imports or component references. Ensure the router outlet in Layout will render the matched route's component. Check for any typos in route paths, missing component exports, incorrect lazy import syntax, or route tree nesting issues that would prevent page components from mounting when their route is active."
         }
       ]
     },
     {
-      "id": "REQ-15",
-      "summary": "Retheme entire app UI to professional blue and orange palette with refined typography, shadows, and hierarchy",
+      "id": "REQ-29",
+      "summary": "Audit all page-level components for runtime errors that prevent rendering, add proper loading and error guards for React Query results",
       "acceptanceCriteria": [
-        "The app no longer uses cricket-green or cream as primary colors anywhere in the UI.",
-        "Deep navy/dark blue is used as the primary background and header color throughout all pages.",
-        "Bold orange is consistently applied to active tab indicators, primary action buttons, score highlights, and key stat values.",
-        "Neutral light grey-white surfaces are used for cards and secondary backgrounds.",
-        "The Tailwind config and CSS custom properties are updated so the new tokens drive the entire theme.",
-        "BottomTabNavigation active state uses orange highlight on a dark blue bar.",
-        "All modals (WicketModal, EndOfInningsModal, EndOfOverModal, ConfigureTournamentRulesModal) use the new blue/orange palette.",
-        "The live scoring dashboard retains high contrast and compact data density using the new palette.",
-        "Cards and sections across all pages have clean borders, elevated shadows, and well-defined hierarchy.",
-        "No component still references old green or cream color classes as primary theme colors."
+        "Each page shows a loading indicator while backend queries are in-flight",
+        "Each page shows a meaningful error state if the backend query fails, rather than crashing",
+        "No page throws an unhandled runtime error when its data is undefined or null on first render",
+        "All page components have valid default exports",
+        "No circular import chains exist among page or component files"
       ],
       "file_operations": [
         {
-          "path": "frontend/tailwind.config.js",
-          "operation": "modify",
-          "description": "Replace cricket-green and cream color tokens with a professional blue and orange palette. Define primary colors as deep navy/dark blue (e.g., primary: { DEFAULT: '#1e3a5f', dark: '#0f1f3d' }), accent/highlight colors as bold orange (e.g., accent: { DEFAULT: '#ff6b35', light: '#ff8c61' }), and neutral surfaces as light grey-white (e.g., neutral: { DEFAULT: '#f5f5f5', dark: '#e0e0e0' }). Update scoreboard color tokens to use the new palette. Retain custom fonts, shadows, and animation configurations but ensure shadow definitions are sharp and elevated for a polished professional look."
-        },
-        {
-          "path": "frontend/src/index.css",
-          "operation": "modify",
-          "description": "Update CSS custom properties for light and dark themes to reflect the new blue/orange palette. Replace any references to cricket-green or cream with deep navy/dark blue for backgrounds and headers, bold orange for accents and highlights, and light grey-white for neutral surfaces. Ensure the :root and .dark selectors define these tokens consistently so all components inheriting from custom properties adopt the new theme automatically."
-        },
-        {
-          "path": "frontend/src/components/BottomTabNavigation.tsx",
-          "operation": "modify",
-          "description": "Update the navigation bar background to deep navy/dark blue and change the active tab indicator to bold orange. Replace any cricket-green or cream color classes with the new blue/orange tokens. Ensure inactive tabs use a muted grey-white text color and active tabs use orange text or underline. Maintain the existing navigation structure and routing logic."
-        },
-        {
-          "path": "frontend/src/components/Layout.tsx",
-          "operation": "modify",
-          "description": "Update the header background to deep navy/dark blue and ensure the logo/title text uses a light color for contrast. Remove any cricket-green or cream references. Apply the new palette tokens for consistency with the global theme. Keep the sticky header and bottom navigation wrapper unchanged structurally."
-        },
-        {
           "path": "frontend/src/pages/Teams.tsx",
           "operation": "modify",
-          "description": "Replace cricket-green and cream color classes with the new blue/orange palette. Use deep navy/dark blue for the page background or header sections, bold orange for primary action buttons (Add Team, Add Player, and the new Bulk Add Players button), and light grey-white for team cards and input fields. Apply clean borders and elevated shadows to team cards. Ensure text hierarchy is sharp with well-defined headings and body text using the configured sans-serif fonts. Do not modify the functionality or data flow."
-        },
-        {
-          "path": "frontend/src/pages/LiveScoring.tsx",
-          "operation": "modify",
-          "description": "Update the live scoring dashboard to use the new blue/orange palette while retaining high contrast and compact data density. Use deep navy/dark blue for dashboard backgrounds, bold orange for score highlights (runs, wickets, strike rate), and light grey-white for card surfaces. Apply sharp borders and elevated shadows to scoring panels. Replace any cricket-green or cream references. Do not modify the scoring logic, state management, or modal triggers."
-        },
-        {
-          "path": "frontend/src/pages/MatchHistory.tsx",
-          "operation": "modify",
-          "description": "Update match history cards to use light grey-white backgrounds with clean borders and elevated shadows. Apply bold orange to status badges (In Progress, Completed) and primary action buttons (Resume, View Scorecard). Use deep navy/dark blue for headers or primary text. Remove any cricket-green or cream color classes. Maintain the existing match listing and navigation logic."
+          "description": "Add defensive checks around React Query results from useTeams and any other hooks. Ensure the component renders a loading spinner or skeleton while queries are pending. Add error boundary or error state UI if queries fail. Guard against accessing undefined/null data before the query succeeds. Verify the component has a valid default export."
         },
         {
           "path": "frontend/src/pages/MatchSetup.tsx",
           "operation": "modify",
-          "description": "Retheme the match setup page using the new blue/orange palette. Apply deep navy/dark blue to section headers, bold orange to the Start Match button and active selections, and light grey-white to form input backgrounds. Use clean borders and elevated shadows on form sections and team selection cards. Replace any cricket-green or cream references. Do not modify the form validation, toss logic, or match creation flow."
+          "description": "Add defensive checks around React Query results from useTeams and any other hooks used in the multi-step wizard. Ensure each step renders a loading state while data is being fetched. Add error states if queries fail. Guard against accessing undefined/null team or player data before queries complete. Verify the component has a valid default export."
+        },
+        {
+          "path": "frontend/src/pages/MatchHistory.tsx",
+          "operation": "modify",
+          "description": "Review how locally stored match history is accessed and rendered. Add loading states if any backend queries (e.g., for team details) are used. Add error handling for failed queries. Guard against undefined/null data access. Verify the component has a valid default export."
+        },
+        {
+          "path": "frontend/src/pages/LiveScoring.tsx",
+          "operation": "modify",
+          "description": "Add defensive checks around React Query results from useMatch and other hooks. Ensure the component renders a loading state while the match data is being fetched. Add error states if queries fail. Guard against accessing undefined/null match, team, or player data before queries complete. Verify the component has a valid default export."
         },
         {
           "path": "frontend/src/pages/Scorecard.tsx",
           "operation": "modify",
-          "description": "Update the scorecard page to use the new blue/orange palette. Apply deep navy/dark blue to table headers and section backgrounds, bold orange to key stat values (runs, wickets, economy, strike rate), and light grey-white to table rows and card surfaces. Use clean borders and elevated shadows for batting and bowling tables. Replace any cricket-green or cream color classes. Maintain the existing tabbed innings navigation and stat computation logic."
+          "description": "Add defensive checks around React Query results from useMatch and other hooks. Ensure the component renders a loading state while match data is being fetched. Add error states if queries fail. Guard against accessing undefined/null match or delivery data before queries complete. Verify the component has a valid default export."
         },
         {
           "path": "frontend/src/pages/Rules.tsx",
           "operation": "modify",
-          "description": "Retheme the rules page using deep navy/dark blue for headers and sections, bold orange for the Configure Tournament Rules button and search highlights, and light grey-white for rule cards. Apply clean borders and elevated shadows to rule category sections. Replace any cricket-green or cream references. Keep the search functionality and ConfigureTournamentRulesModal integration unchanged."
+          "description": "Add defensive checks around React Query results from useTournamentRules and any other hooks. Ensure the component renders a loading state while rules are being fetched. Add error states if queries fail. Guard against accessing undefined/null tournament rules before queries complete. Verify the component has a valid default export."
+        }
+      ]
+    },
+    {
+      "id": "REQ-30",
+      "summary": "Audit useActor and useQueries hooks to ensure the backend actor is initialized correctly and queries handle uninitialized actor state gracefully",
+      "acceptanceCriteria": [
+        "Pages that depend on backend queries do not crash when the actor is not yet initialized",
+        "React Query hooks return loading or idle state rather than throwing when the actor is undefined",
+        "Once the actor becomes available, queries re-fetch and pages populate with data automatically"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/hooks/useQueries.ts",
+          "operation": "modify",
+          "description": "Review all React Query hook definitions (useTeams, useMatch, useTournamentRules, etc.) to ensure they use the 'enabled' option to prevent queries from running when the actor is undefined or null. For example, set enabled: !!actor in the query options. Verify that mutations also check for actor existence before attempting to call backend methods. This prevents runtime errors from propagating up to page components when the actor is not yet initialized."
+        }
+      ]
+    },
+    {
+      "id": "REQ-31",
+      "summary": "Audit Layout and BottomTabNavigation components to ensure the router outlet renders child page content correctly and navigation links use correct hrefs",
+      "acceptanceCriteria": [
+        "The main content area of the Layout renders the active route's page component",
+        "Bottom tab navigation links navigate to the correct routes without a full page reload",
+        "No page content is hidden by an incorrect conditional in Layout or BottomTabNavigation"
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/Layout.tsx",
+          "operation": "modify",
+          "description": "Verify that the TanStack Router Outlet component is correctly placed in the main content area and is not wrapped in any conditional logic that would prevent it from rendering. Ensure the Outlet is always visible and that the Layout's structure does not inadvertently hide or replace the outlet with an empty fragment or null. Confirm that the Layout passes through all child routes without interference."
         },
         {
-          "path": "frontend/src/components/ScoreDisplay.tsx",
+          "path": "frontend/src/components/BottomTabNavigation.tsx",
           "operation": "modify",
-          "description": "Update the live scoreboard component to use bold orange for runs, wickets, and run rate values, deep navy/dark blue for label text, and light grey-white for card backgrounds. Ensure high contrast for readability on a dark blue or light grey background. Replace any cricket-green or cream color classes. Do not modify the score computation or data display logic."
-        },
-        {
-          "path": "frontend/src/components/BatsmanStatsPanel.tsx",
-          "operation": "modify",
-          "description": "Retheme the batsman stats panel using bold orange for runs, strike rate, and key stat values, deep navy/dark blue for labels, and light grey-white for card backgrounds. Apply the striker highlight using bold orange border or background. Use clean borders and elevated shadows. Replace any cricket-green or cream references. Maintain the existing stat display structure."
-        },
-        {
-          "path": "frontend/src/components/BowlerStatsPanel.tsx",
-          "operation": "modify",
-          "description": "Update the bowler stats panel to use bold orange for wickets and economy values, deep navy/dark blue for labels, and light grey-white for the card background. Apply clean borders and elevated shadows. Replace any cricket-green or cream color classes. Keep the existing stat formatting and layout unchanged."
-        },
-        {
-          "path": "frontend/src/components/OverTimeline.tsx",
-          "operation": "modify",
-          "description": "Retheme the over timeline to use bold orange for run-scoring balls, deep navy/dark blue for dot balls, and light grey for empty slots. Ensure ball circles have clean borders and are visually distinct. Replace any cricket-green or cream references. Maintain the existing ball rendering and layout logic."
-        },
-        {
-          "path": "frontend/src/components/WicketModal.tsx",
-          "operation": "modify",
-          "description": "Update the wicket modal to use deep navy/dark blue for the header, bold orange for the confirm button, and light grey-white for the modal background. Apply clean borders and elevated shadows. Replace any cricket-green or cream color classes. Keep the wicket type selection and dismissal recording logic unchanged."
-        },
-        {
-          "path": "frontend/src/components/EndOfOverModal.tsx",
-          "operation": "modify",
-          "description": "Retheme the end-of-over modal using deep navy/dark blue for the header, bold orange for the confirm button, and light grey-white for the modal background. Apply clean borders and elevated shadows. Replace any cricket-green or cream references. Maintain the bowler selection logic and eligible player filtering."
-        },
-        {
-          "path": "frontend/src/components/EndOfInningsModal.tsx",
-          "operation": "modify",
-          "description": "Update the end-of-innings modal to use deep navy/dark blue for the header, bold orange for primary action buttons (Start Second Innings, End Match), and light grey-white for the modal background. Apply clean borders and elevated shadows. Replace any cricket-green or cream color classes. Keep the innings summary display and player selection logic unchanged."
-        },
-        {
-          "path": "frontend/src/components/ConfigureTournamentRulesModal.tsx",
-          "operation": "modify",
-          "description": "Retheme the tournament rules modal using deep navy/dark blue for the header, bold orange for the submit button, and light grey-white for the modal background and form inputs. Apply clean borders and elevated shadows to form sections. Replace any cricket-green or cream references. Maintain the existing form validation and rule update logic."
+          "description": "Review each navigation link to ensure it uses the correct TanStack Router Link component with the correct 'to' prop values matching the route paths defined in App.tsx ('/' for Home/History, '/teams' for Teams, '/setup' for Match Setup, '/rules' for Rules). Verify that the active route detection logic correctly highlights the active tab. Ensure no typos or mismatched paths exist that would cause navigation to fail or route to the wrong page."
         }
       ]
     }

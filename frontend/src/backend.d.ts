@@ -120,6 +120,7 @@ export interface Team {
     logo: string;
     name: string;
     color: string;
+    squad: Array<PlayerId>;
     players: Array<Player>;
 }
 export interface backendInterface {
@@ -132,6 +133,8 @@ export interface backendInterface {
     getTeam(teamId: TeamId): Promise<Team | null>;
     getTournamentRules(): Promise<TournamentRules>;
     recordDelivery(matchId: MatchId, delivery: Delivery): Promise<void>;
+    resetAllData(): Promise<void>;
+    selectSquad(teamId: TeamId, squad: Array<PlayerId>): Promise<void>;
     updateMatchRules(matchId: MatchId, newRules: MatchRules): Promise<void>;
     updateTournamentRules(rules: TournamentRules): Promise<void>;
 }

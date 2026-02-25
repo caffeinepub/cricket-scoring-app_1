@@ -73,6 +73,7 @@ export interface Team {
   'logo' : string,
   'name' : string,
   'color' : string,
+  'squad' : Array<PlayerId>,
   'players' : Array<Player>,
 }
 export type TeamId = bigint;
@@ -120,6 +121,8 @@ export interface _SERVICE {
   'getTeam' : ActorMethod<[TeamId], [] | [Team]>,
   'getTournamentRules' : ActorMethod<[], TournamentRules>,
   'recordDelivery' : ActorMethod<[MatchId, Delivery], undefined>,
+  'resetAllData' : ActorMethod<[], undefined>,
+  'selectSquad' : ActorMethod<[TeamId, Array<PlayerId>], undefined>,
   'updateMatchRules' : ActorMethod<[MatchId, MatchRules], undefined>,
   'updateTournamentRules' : ActorMethod<[TournamentRules], undefined>,
 }

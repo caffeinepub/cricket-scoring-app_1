@@ -1,62 +1,69 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-25T08:35:16.598Z",
+  "generatedAt": "2026-02-25T10:39:57.224Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 2,
-    "implemented": 2,
+    "total": 4,
+    "implemented": 4,
     "items": [
       {
-        "id": "REQ-14",
-        "summary": "Add a bulk player name upload feature to the Teams page. Users must be able to paste a newline-separated or comma-separated list of player names into a text area, or upload a plain-text (.txt) or CSV file, and have all valid names added as players to the selected team in one action. Each parsed name should be validated (non-empty, not duplicate within the team, team does not exceed 11 players). Show a preview of parsed names before confirming, and display a summary of how many players were added or skipped with reasons.",
+        "id": "REQ-28",
+        "summary": "Audit and fix the TanStack Router configuration in frontend/src/App.tsx to ensure all registered routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) render their page components correctly when navigated to. Investigate and resolve any broken route definitions, missing lazy imports, incorrect path parameters, or misconfigured route trees that would cause pages to appear blank or fail to mount.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/src/components/BulkPlayerUploadModal.tsx",
-          "frontend/src/pages/Teams.tsx"
+          "frontend/src/App.tsx"
         ],
         "matchedFiles": [
-          "frontend/src/components/BulkPlayerUploadModal.tsx",
-          "frontend/src/pages/Teams.tsx"
+          "frontend/src/App.tsx"
         ]
       },
       {
-        "id": "REQ-15",
-        "summary": "Retheme the entire app UI from the current cricket-green/cream palette to a professional blue and orange color scheme. Primary backgrounds and headers should use deep navy/dark blue tones. Accent colors, highlights, active states, buttons, and key data values should use bold orange. Neutral surfaces should use light grey-white. Update Tailwind config color tokens, CSS custom properties in index.css, and all component-level color classes (Teams page, BottomTabNavigation, Layout header, scoring dashboard, scorecard, match history, match setup, rules page, and modals) to consistently reflect the new blue-and-orange palette. Typography, spacing, and layout density should be refined to feel more professional and polished — clean sans-serif body text, sharp card borders, elevated shadows, and well-defined section hierarchy.",
+        "id": "REQ-29",
+        "summary": "Audit all page-level components (Teams.tsx, MatchSetup.tsx, MatchHistory.tsx, LiveScoring.tsx, Scorecard.tsx, Rules.tsx) for runtime errors that prevent rendering. Fix any issues including: undefined/null data access before React Query results have loaded (add proper loading and error guards), broken or circular imports, missing default exports, and any top-level exceptions thrown during component initialization. Each page must render a visible loading state while data is being fetched and must not crash or display a blank screen.",
         "status": "implemented",
         "plannedFiles": [
-          "frontend/tailwind.config.js",
-          "frontend/src/index.css",
-          "frontend/src/components/BottomTabNavigation.tsx",
-          "frontend/src/components/Layout.tsx",
           "frontend/src/pages/Teams.tsx",
-          "frontend/src/pages/LiveScoring.tsx",
-          "frontend/src/pages/MatchHistory.tsx",
           "frontend/src/pages/MatchSetup.tsx",
+          "frontend/src/pages/MatchHistory.tsx",
+          "frontend/src/pages/LiveScoring.tsx",
           "frontend/src/pages/Scorecard.tsx",
-          "frontend/src/pages/Rules.tsx",
-          "frontend/src/components/ScoreDisplay.tsx",
-          "frontend/src/components/BatsmanStatsPanel.tsx",
-          "frontend/src/components/BowlerStatsPanel.tsx",
-          "frontend/src/components/OverTimeline.tsx",
-          "frontend/src/components/WicketModal.tsx",
-          "frontend/src/components/EndOfOverModal.tsx",
-          "frontend/src/components/EndOfInningsModal.tsx",
-          "frontend/src/components/ConfigureTournamentRulesModal.tsx"
+          "frontend/src/pages/Rules.tsx"
         ],
         "matchedFiles": [
-          "frontend/tailwind.config.js",
-          "frontend/src/index.css",
-          "frontend/src/components/BottomTabNavigation.tsx",
-          "frontend/src/components/Layout.tsx",
           "frontend/src/pages/Teams.tsx",
-          "frontend/src/pages/LiveScoring.tsx",
-          "frontend/src/pages/MatchHistory.tsx",
           "frontend/src/pages/MatchSetup.tsx",
+          "frontend/src/pages/MatchHistory.tsx",
+          "frontend/src/pages/LiveScoring.tsx",
+          "frontend/src/pages/Scorecard.tsx",
           "frontend/src/pages/Rules.tsx"
+        ]
+      },
+      {
+        "id": "REQ-30",
+        "summary": "Audit the useActor hook (frontend/src/hooks/useActor.ts) and the useQueries hooks (frontend/src/hooks/useQueries.ts) to ensure the backend actor is initialized correctly even when the user is not authenticated. Any query or mutation that attempts to call actor methods before the actor is ready must handle the uninitialized state gracefully (e.g., by keeping query enabled flags false until the actor is available) rather than throwing errors that propagate and break page rendering.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/hooks/useQueries.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/hooks/useQueries.ts"
+        ]
+      },
+      {
+        "id": "REQ-31",
+        "summary": "Audit the Layout component (frontend/src/components/Layout.tsx) and the BottomTabNavigation component (frontend/src/components/BottomTabNavigation.tsx) to ensure the router outlet renders child page content correctly. Verify the Outlet component from TanStack Router is placed correctly inside the Layout, that no conditional logic inadvertently hides the outlet or replaces it with an empty fragment, and that the bottom tab navigation links use the correct href/to values matching the defined routes in App.tsx.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/Layout.tsx",
+          "frontend/src/components/BottomTabNavigation.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/Layout.tsx",
+          "frontend/src/components/BottomTabNavigation.tsx"
         ]
       }
     ]
@@ -68,16 +75,15 @@
     "frontend-implementation-plan.json",
     "frontend/src/App.tsx",
     "frontend/src/components/BottomTabNavigation.tsx",
-    "frontend/src/components/BulkPlayerUploadModal.tsx",
     "frontend/src/components/Layout.tsx",
+    "frontend/src/hooks/useMatchState.ts",
     "frontend/src/hooks/useQueries.ts",
-    "frontend/src/index.css",
     "frontend/src/pages/LiveScoring.tsx",
     "frontend/src/pages/MatchHistory.tsx",
     "frontend/src/pages/MatchSetup.tsx",
     "frontend/src/pages/Rules.tsx",
+    "frontend/src/pages/Scorecard.tsx",
     "frontend/src/pages/Teams.tsx",
-    "frontend/tailwind.config.js",
     "project_state.json",
     "scratch/component-selection.json",
     "spec.md",

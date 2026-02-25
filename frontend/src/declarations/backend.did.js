@@ -29,6 +29,7 @@ export const Team = IDL.Record({
   'logo' : IDL.Text,
   'name' : IDL.Text,
   'color' : IDL.Text,
+  'squad' : IDL.Vec(PlayerId),
   'players' : IDL.Vec(Player),
 });
 export const WicketType = IDL.Variant({
@@ -121,6 +122,8 @@ export const idlService = IDL.Service({
   'getTeam' : IDL.Func([TeamId], [IDL.Opt(Team)], ['query']),
   'getTournamentRules' : IDL.Func([], [TournamentRules], ['query']),
   'recordDelivery' : IDL.Func([MatchId, Delivery], [], []),
+  'resetAllData' : IDL.Func([], [], []),
+  'selectSquad' : IDL.Func([TeamId, IDL.Vec(PlayerId)], [], []),
   'updateMatchRules' : IDL.Func([MatchId, MatchRules], [], []),
   'updateTournamentRules' : IDL.Func([TournamentRules], [], []),
 });
@@ -149,6 +152,7 @@ export const idlFactory = ({ IDL }) => {
     'logo' : IDL.Text,
     'name' : IDL.Text,
     'color' : IDL.Text,
+    'squad' : IDL.Vec(PlayerId),
     'players' : IDL.Vec(Player),
   });
   const WicketType = IDL.Variant({
@@ -249,6 +253,8 @@ export const idlFactory = ({ IDL }) => {
     'getTeam' : IDL.Func([TeamId], [IDL.Opt(Team)], ['query']),
     'getTournamentRules' : IDL.Func([], [TournamentRules], ['query']),
     'recordDelivery' : IDL.Func([MatchId, Delivery], [], []),
+    'resetAllData' : IDL.Func([], [], []),
+    'selectSquad' : IDL.Func([TeamId, IDL.Vec(PlayerId)], [], []),
     'updateMatchRules' : IDL.Func([MatchId, MatchRules], [], []),
     'updateTournamentRules' : IDL.Func([TournamentRules], [], []),
   });

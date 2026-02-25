@@ -1,7 +1,6 @@
 import Array "mo:core/Array";
 import List "mo:core/List";
 import Map "mo:core/Map";
-import Text "mo:core/Text";
 import Nat "mo:core/Nat";
 import Int "mo:core/Int";
 import Order "mo:core/Order";
@@ -20,6 +19,7 @@ actor {
     color : Text;
     logo : Text;
     players : [Player];
+    squad : [PlayerId];
   };
 
   type Player = {
@@ -130,6 +130,7 @@ actor {
 
   let teamStore = Map.empty<TeamId, Team>();
   let matchStore = Map.empty<MatchId, Match>();
+
   var tournamentRules : TournamentRules = {
     totalMatches = 0;
     numTeams = 0;
@@ -179,6 +180,7 @@ actor {
     if (teamStore.values().find(func(t) { t.name == name }) != null) {
       Runtime.trap("Team name already exists");
     };
+
     let teamId = nextTeamId;
 
     let newTeam : Team = {
@@ -187,6 +189,7 @@ actor {
       color;
       logo;
       players = [];
+      squad = [];
     };
 
     teamStore.add(teamId, newTeam);
@@ -200,8 +203,6 @@ actor {
       case (null) { Runtime.trap("Team does not exist") };
       case (?t) { t };
     };
-
-    if (team.players.size() >= 11) { Runtime.trap("Maximum 11 players allowed") };
 
     if (team.players.find(func(p) { p.name == name }) != null) {
       Runtime.trap("Player name already exists in the team");
@@ -224,6 +225,20 @@ actor {
     playerId;
   };
 
+  public shared ({ caller }) func selectSquad(teamId : TeamId, squad : [PlayerId]) : async () {
+    if (squad.size() != 11) {
+      Runtime.trap("Exactly 11 players must be selected for playing 11");
+    };
+
+    switch (teamStore.get(teamId)) {
+      case (null) { Runtime.trap("Team does not exist") };
+      case (?team) {
+        let updatedTeam = { team with squad };
+        teamStore.add(teamId, updatedTeam);
+      };
+    };
+  };
+
   public shared ({ caller }) func createMatch(teamAId : TeamId, teamBId : TeamId, rules : MatchRules) : async MatchId {
     let teamA = switch (teamStore.get(teamAId)) {
       case (null) { Runtime.trap("Team A does not exist") };
@@ -234,11 +249,11 @@ actor {
       case (?t) { t };
     };
 
-    if (teamA.players.size() < 11) {
-      Runtime.trap("Team A does not have enough players");
+    if (teamA.squad.size() != 11) {
+      Runtime.trap("Team A does not have a playing 11 selected");
     };
-    if (teamB.players.size() < 11) {
-      Runtime.trap("Team B does not have enough players");
+    if (teamB.squad.size() != 11) {
+      Runtime.trap("Team B does not have a playing 11 selected");
     };
 
     let matchId = nextMatchId;
@@ -365,5 +380,43 @@ actor {
 
   public shared ({ caller }) func updateTournamentRules(rules : TournamentRules) : async () {
     tournamentRules := rules;
+  };
+
+  public shared ({ caller }) func resetAllData() : async () {
+    let defaultTournamentRules : TournamentRules = {
+      totalMatches = 0;
+      numTeams = 0;
+      leagueMatches = 0;
+      knockoutMatches = 0;
+      semifinalMatches = 0;
+      finalMatches = 0;
+      leagueOvers = 50;
+      finalOvers = 50;
+      leaguePowerplayOvers = 10;
+      finalPowerplayOvers = 10;
+      maxFieldersOutside30Yards = 5;
+      timeoutDurationSeconds = 120;
+      teamReadinessPenaltyMinutes = 10;
+      teamReadinessPenaltyOvers = 3;
+      slowOverRatePenaltyRuns = 5;
+      inningsDurationMinutes = 90;
+      maxBallsPerBatsmanShortFormat = 50;
+      maxBallsPerBatsmanLongFormat = 100;
+      maxOversBowlerShortFormat = 10;
+      maxOversBowlerLongFormat = 20;
+      bouncerLimitPerOver = 2;
+      widesNoBallBowlerChangeThreshold = 3;
+      defaultPenaltyRuns = 5;
+      lbwApplicable = true;
+      freeHitApplicable = true;
+    };
+
+    teamStore.clear();
+    matchStore.clear();
+
+    tournamentRules := defaultTournamentRules;
+    nextTeamId := 0;
+    nextPlayerId := 0;
+    nextMatchId := 0;
   };
 };

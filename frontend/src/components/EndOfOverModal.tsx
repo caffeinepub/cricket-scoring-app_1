@@ -1,83 +1,82 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Player } from '../backend';
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Player } from "@/backend";
+import { Loader2 } from "lucide-react";
 
 interface EndOfOverModalProps {
   open: boolean;
-  overNumber: number;
-  bowlingTeamPlayers: Player[];
-  currentBowlerId: bigint;
-  maxOversPerBowler: number;
-  bowlerOverCounts: Map<string, number>;
-  onSelectBowler: (bowlerId: bigint) => void;
+  onClose: () => void;
+  onConfirm: (nextBowlerId: bigint) => void;
+  currentBowlerId: bigint | null;
+  bowlingTeamPlayers: bigint[];
+  allPlayers: Player[];
+  isLoading?: boolean;
 }
 
 export default function EndOfOverModal({
   open,
-  overNumber,
-  bowlingTeamPlayers,
+  onClose,
+  onConfirm,
   currentBowlerId,
-  maxOversPerBowler,
-  bowlerOverCounts,
-  onSelectBowler,
+  bowlingTeamPlayers,
+  allPlayers,
+  isLoading = false,
 }: EndOfOverModalProps) {
-  const [selectedBowlerId, setSelectedBowlerId] = useState('');
+  const [nextBowlerId, setNextBowlerId] = useState<string>("");
 
-  const eligibleBowlers = bowlingTeamPlayers.filter(p => {
-    const overs = bowlerOverCounts.get(p.id.toString()) ?? 0;
-    return overs < maxOversPerBowler && p.id !== currentBowlerId;
-  });
+  const availableBowlers = allPlayers.filter(
+    (p) =>
+      bowlingTeamPlayers.includes(p.id) &&
+      (currentBowlerId === null || p.id !== currentBowlerId)
+  );
 
   const handleConfirm = () => {
-    if (!selectedBowlerId) return;
-    const bowler = bowlingTeamPlayers.find(p => p.id.toString() === selectedBowlerId);
-    if (bowler) {
-      onSelectBowler(bowler.id);
-      setSelectedBowlerId('');
-    }
+    if (!nextBowlerId) return;
+    onConfirm(BigInt(nextBowlerId));
   };
 
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      <DialogContent className="max-w-sm" onInteractOutside={e => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm mx-4">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">End of Over {overNumber}</DialogTitle>
+          <DialogTitle className="font-display text-lg">End of Over</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">Select the bowler for the next over.</p>
-          <div>
-            <Label>Next Bowler</Label>
-            <Select value={selectedBowlerId} onValueChange={setSelectedBowlerId}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select bowler" />
-              </SelectTrigger>
-              <SelectContent>
-                {eligibleBowlers.map(p => {
-                  const overs = bowlerOverCounts.get(p.id.toString()) ?? 0;
-                  return (
-                    <SelectItem key={p.id.toString()} value={p.id.toString()}>
-                      {p.name} ({overs}/{maxOversPerBowler} overs)
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            {eligibleBowlers.length === 0 && (
-              <p className="text-xs text-destructive mt-1">No eligible bowlers available!</p>
-            )}
-          </div>
+        <div className="py-2 space-y-1.5">
+          <Label className="text-sm font-medium">Next Bowler</Label>
+          <Select value={nextBowlerId} onValueChange={setNextBowlerId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select next bowler" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableBowlers.length === 0 ? (
+                <SelectItem value="none" disabled>
+                  No bowlers available
+                </SelectItem>
+              ) : (
+                availableBowlers.map((p) => (
+                  <SelectItem key={String(p.id)} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={isLoading} className="flex-1">
+            Cancel
+          </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selectedBowlerId}
-            className="w-full bg-cricket-green text-cricket-cream hover:bg-cricket-green-dark"
+            disabled={!nextBowlerId || isLoading}
+            className="flex-1"
           >
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
             Start Next Over
           </Button>
         </DialogFooter>

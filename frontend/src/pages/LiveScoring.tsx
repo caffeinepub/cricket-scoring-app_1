@@ -1,392 +1,342 @@
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from '@tanstack/react-router';
-import { ArrowLeft, FileText } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useGetAllTeams, useRecordDelivery } from '../hooks/useQueries';
-import { useMatchState } from '../hooks/useMatchState';
-import ScoreDisplay from '../components/ScoreDisplay';
-import BatsmanStatsPanel from '../components/BatsmanStatsPanel';
-import BowlerStatsPanel from '../components/BowlerStatsPanel';
-import OverTimeline from '../components/OverTimeline';
-import WicketModal from '../components/WicketModal';
-import EndOfOverModal from '../components/EndOfOverModal';
-import EndOfInningsModal from '../components/EndOfInningsModal';
-import { formatOvers } from '../lib/matchUtils';
-import { saveLocalMatchState, updateMatchFinished } from '../lib/matchStore';
-import type { WicketType, Delivery, Team } from '../backend';
-
-const RUN_BUTTONS = [0, 1, 2, 3, 4, 6];
+import { useState } from "react";
+import { useParams, useSearch, useNavigate } from "@tanstack/react-router";
+import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMatch, useTeam, useRecordDelivery } from "@/hooks/useQueries";
+import { useMatchState } from "@/hooks/useMatchState";
+import EndOfOverModal from "@/components/EndOfOverModal";
+import WicketModal from "@/components/WicketModal";
+import EndOfInningsModal from "@/components/EndOfInningsModal";
+import type { WicketType } from "@/backend";
 
 export default function LiveScoring() {
-  const { matchId } = useParams({ from: '/match/$matchId' });
-  const router = useRouter();
-  const { data: teams = [] } = useGetAllTeams();
+  // Try path params first, then search params
+  let matchIdStr: string | undefined;
+  try {
+    const params = useParams({ strict: false });
+    matchIdStr = (params as Record<string, string>)?.matchId;
+  } catch {
+    matchIdStr = undefined;
+  }
 
-  const [matchTeamA, setMatchTeamA] = useState<Team | null>(null);
-  const [matchTeamB, setMatchTeamB] = useState<Team | null>(null);
+  let searchMatchId: string | undefined;
+  try {
+    const search = useSearch({ strict: false });
+    searchMatchId = (search as Record<string, string>)?.matchId;
+  } catch {
+    searchMatchId = undefined;
+  }
 
-  const matchState = useMatchState(matchId, matchTeamA, matchTeamB);
-  const {
-    match,
-    isLoading,
-    strikerId,
-    nonStrikerId,
-    bowlerId,
-    setStrikerId,
-    setNonStrikerId,
-    setBowlerId,
-    swapBatsmen,
-    totalRuns,
-    wickets,
-    legalBalls,
-    currentOver,
-    strikerStats,
-    nonStrikerStats,
-    bowlerStats,
-    bowlerOverCounts,
-    isOverComplete,
-    isInningsComplete,
-  } = matchState;
+  const resolvedMatchId = matchIdStr || searchMatchId;
+  const matchIdBigInt = resolvedMatchId ? BigInt(resolvedMatchId) : null;
 
-  const matchIdBigInt = matchId ? BigInt(matchId) : null;
-  const recordDelivery = useRecordDelivery(matchIdBigInt);
+  const navigate = useNavigate();
+  const { data: match, isLoading: matchLoading, isError: matchError } = useMatch(matchIdBigInt);
+
+  const teamAId = match?.teamAId ?? null;
+  const teamBId = match?.teamBId ?? null;
+
+  const { data: teamA, isLoading: teamALoading } = useTeam(teamAId);
+  const { data: teamB, isLoading: teamBLoading } = useTeam(teamBId);
+
+  const recordDelivery = useRecordDelivery();
 
   const [showWicketModal, setShowWicketModal] = useState(false);
-  const [showEndOfOver, setShowEndOfOver] = useState(false);
-  const [showEndOfInnings, setShowEndOfInnings] = useState(false);
-  const [pendingWicketRuns] = useState(0);
-  const [isFreeHit, setIsFreeHit] = useState(false);
+  const [showEndOfOverModal, setShowEndOfOverModal] = useState(false);
+  const [showEndOfInningsModal, setShowEndOfInningsModal] = useState(false);
 
-  // Set teams from match data
-  useEffect(() => {
-    if (match && teams.length > 0) {
-      const tA = teams.find(t => t.id === match.teamAId) ?? null;
-      const tB = teams.find(t => t.id === match.teamBId) ?? null;
-      setMatchTeamA(tA);
-      setMatchTeamB(tB);
-    }
-  }, [match, teams]);
+  // useMatchState takes exactly 3 args: matchId, teamA, teamB
+  const matchState = useMatchState(
+    resolvedMatchId ?? "",
+    teamA ?? null,
+    teamB ?? null
+  );
 
-  // Check for end of over / innings after each delivery
-  useEffect(() => {
-    if (!match || isLoading) return;
-    if (isInningsComplete && !showEndOfInnings && !showEndOfOver) {
-      setShowEndOfInnings(true);
-    } else if (isOverComplete && !isInningsComplete && !showEndOfOver && !showEndOfInnings) {
-      setShowEndOfOver(true);
-    }
-  }, [isOverComplete, isInningsComplete, match, isLoading, showEndOfInnings, showEndOfOver]);
+  const isLoading = matchLoading || teamALoading || teamBLoading;
 
-  const currentInnings = match ? Number(match.currentInnings) : 1;
-  const battingTeamId = currentInnings === 1 ? match?.teamAId : match?.teamBId;
-  const battingTeam = battingTeamId === match?.teamAId ? matchTeamA : matchTeamB;
-  const bowlingTeam = battingTeamId === match?.teamAId ? matchTeamB : matchTeamA;
-
-  const strikerPlayer = battingTeam?.players.find(p => p.id === strikerId) ?? null;
-  const nonStrikerPlayer = battingTeam?.players.find(p => p.id === nonStrikerId) ?? null;
-
-  const handleDelivery = async (
-    runs: number,
-    extras: { isWide?: boolean; isNoBall?: boolean; isBye?: boolean; isLegBye?: boolean } = {}
-  ) => {
-    if (!match || !strikerId || !bowlerId) return;
-
-    const delivery: Delivery = {
-      batsmanId: strikerId,
-      bowlerId: bowlerId,
-      runs: BigInt(runs),
-      isWide: extras.isWide ?? false,
-      isNoBall: extras.isNoBall ?? false,
-      isBye: extras.isBye ?? false,
-      isLegBye: extras.isLegBye ?? false,
-      isFreeHit: isFreeHit,
-      wicket: undefined,
-    };
-
-    try {
-      await recordDelivery.mutateAsync(delivery);
-      setIsFreeHit(extras.isNoBall ?? false);
-      // Swap batsmen on odd runs (legal delivery only)
-      if (!extras.isWide && !extras.isNoBall && runs % 2 === 1) {
-        swapBatsmen();
-      }
-    } catch (err) {
-      console.error('Failed to record delivery:', err);
-    }
-  };
-
-  const handleWicketConfirm = async (batsmanId: bigint, wicket: WicketType) => {
-    if (!match || !strikerId || !bowlerId) return;
-
-    const delivery: Delivery = {
-      batsmanId: batsmanId,
-      bowlerId: bowlerId,
-      runs: BigInt(pendingWicketRuns),
-      isWide: false,
-      isNoBall: false,
-      isBye: false,
-      isLegBye: false,
-      isFreeHit: isFreeHit,
-      wicket,
-    };
-
-    try {
-      await recordDelivery.mutateAsync(delivery);
-      setIsFreeHit(false);
-
-      // Find next batsman
-      const battingPlayers = battingTeam?.players ?? [];
-      const usedIds = new Set([strikerId?.toString(), nonStrikerId?.toString()]);
-      const nextBatsman = battingPlayers.find(p => !usedIds.has(p.id.toString()));
-
-      if (nextBatsman) {
-        if (batsmanId === strikerId) {
-          setStrikerId(nextBatsman.id);
-        } else {
-          setNonStrikerId(nextBatsman.id);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to record wicket:', err);
-    }
-  };
-
-  const handleSelectNextBowler = (newBowlerId: bigint) => {
-    setBowlerId(newBowlerId);
-    swapBatsmen();
-    setShowEndOfOver(false);
-  };
-
-  const handleStartSecondInnings = (
-    newStrikerId: bigint,
-    newNonStrikerId: bigint,
-    newBowlerId: bigint
-  ) => {
-    setStrikerId(newStrikerId);
-    setNonStrikerId(newNonStrikerId);
-    setBowlerId(newBowlerId);
-    if (matchId) {
-      saveLocalMatchState({
-        matchId,
-        strikerId: newStrikerId.toString(),
-        nonStrikerId: newNonStrikerId.toString(),
-        bowlerId: newBowlerId.toString(),
-        currentInnings: 2,
-      });
-    }
-    setShowEndOfInnings(false);
-  };
-
-  const handleEndMatch = () => {
-    if (matchId) updateMatchFinished(matchId, true);
-    setShowEndOfInnings(false);
-    router.navigate({ to: `/scorecard/${matchId}` });
-  };
+  if (!resolvedMatchId) {
+    return (
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>No match ID provided.</AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={() => navigate({ to: "/" })}>
+          <ArrowLeft size={16} className="mr-1" />
+          Go Home
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
-      <div className="p-4 space-y-3">
-        <div className="h-40 bg-muted rounded-xl animate-pulse" />
-        <div className="h-24 bg-muted rounded-lg animate-pulse" />
-        <div className="h-24 bg-muted rounded-lg animate-pulse" />
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-32 w-full rounded-lg" />
+        <Skeleton className="h-48 w-full rounded-lg" />
       </div>
     );
   }
 
-  if (!match) {
+  if (matchError || !match) {
     return (
-      <div className="p-4 text-center py-16">
-        <p className="text-muted-foreground">Match not found.</p>
-        <Button
-          onClick={() => router.navigate({ to: '/history' })}
-          className="mt-4"
-          style={{ background: 'oklch(0.65 0.18 45)', color: 'oklch(0.1 0.02 240)' }}
-        >
-          Back to History
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {matchError ? "Failed to load match data." : "Match not found."}
+          </AlertDescription>
+        </Alert>
+        <Button variant="outline" onClick={() => navigate({ to: "/" })}>
+          <ArrowLeft size={16} className="mr-1" />
+          Go Home
         </Button>
       </div>
     );
   }
 
-  const maxOversPerBowler = Number(match.rules.maxOversPerBowler);
-  const nextBattingTeam = currentInnings === 1 ? matchTeamB : matchTeamA;
-  const nextBowlingTeam = currentInnings === 1 ? matchTeamA : matchTeamB;
+  const currentInningsData = match.innings[Number(match.currentInnings) - 1];
+  const battingTeamId = currentInningsData?.battingTeamId;
+  const bowlingTeamId = currentInningsData?.bowlingTeamId;
+
+  const battingTeam = battingTeamId === match.teamAId ? teamA : teamB;
+  const bowlingTeam = bowlingTeamId === match.teamAId ? teamA : teamB;
+
+  const battingTeamPlayers: bigint[] = battingTeamId === match.teamAId
+    ? (teamA?.squad ?? [])
+    : (teamB?.squad ?? []);
+  const bowlingTeamPlayers: bigint[] = bowlingTeamId === match.teamAId
+    ? (teamA?.squad ?? [])
+    : (teamB?.squad ?? []);
+
+  const allPlayers = [
+    ...(teamA?.players ?? []),
+    ...(teamB?.players ?? []),
+  ];
+
+  const getPlayerName = (id: bigint) => {
+    const p = allPlayers.find((pl) => pl.id === id);
+    return p?.name ?? `Player ${id}`;
+  };
+
+  const handleDelivery = async (
+    runs: number,
+    extras: { isWide?: boolean; isNoBall?: boolean; isBye?: boolean; isLegBye?: boolean },
+    wicket?: WicketType
+  ) => {
+    if (!matchState.strikerId || !matchState.bowlerId || !matchIdBigInt) return;
+
+    await recordDelivery.mutateAsync({
+      matchId: matchIdBigInt,
+      delivery: {
+        batsmanId: matchState.strikerId,
+        bowlerId: matchState.bowlerId,
+        runs: BigInt(runs),
+        isWide: extras.isWide ?? false,
+        isNoBall: extras.isNoBall ?? false,
+        isBye: extras.isBye ?? false,
+        isLegBye: extras.isLegBye ?? false,
+        isFreeHit: false,
+        wicket,
+      },
+    });
+
+    // Rotate strike on odd runs (not wide)
+    if (runs % 2 !== 0 && !extras.isWide) {
+      matchState.swapBatsmen();
+    }
+  };
+
+  const totalRuns = Number(currentInningsData?.totalRuns ?? 0);
+  const wickets = Number(currentInningsData?.wicketsLost ?? 0);
+  const overs = Number(currentInningsData?.overs ?? 0);
+  const legalBallsInOver = matchState.legalBalls % 6;
 
   return (
-    <div className="p-3 space-y-3 pb-4">
-      {/* Top bar */}
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => router.navigate({ to: '/history' })}
-        >
-          <ArrowLeft size={18} />
-        </Button>
-        <div className="flex items-center gap-1">
-          {isFreeHit && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full animate-pulse"
-              style={{ background: 'oklch(0.65 0.18 45)', color: 'oklch(0.1 0.02 240)' }}
-            >
-              FREE HIT
-            </span>
-          )}
-          {match.isFinished && (
-            <span
-              className="text-xs font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'oklch(0.55 0.15 145)', color: 'oklch(0.97 0.005 240)' }}
-            >
-              COMPLETED
-            </span>
-          )}
+        <div>
+          <h2 className="text-xl font-bold text-foreground">
+            {battingTeam?.name ?? "Team A"} vs {bowlingTeam?.name ?? "Team B"}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Innings {Number(match.currentInnings)} • Live
+          </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.navigate({ to: `/scorecard/${matchId}` })}
-          className="text-xs"
-        >
-          <FileText size={14} className="mr-1" />
-          Scorecard
-        </Button>
+        <Badge variant="default" className="bg-accent text-accent-foreground animate-pulse">
+          LIVE
+        </Badge>
       </div>
 
-      {/* Score Display */}
-      <ScoreDisplay
-        match={match}
-        teamA={matchTeamA}
-        teamB={matchTeamB}
-        totalRuns={totalRuns}
-        wickets={wickets}
-        legalBalls={legalBalls}
-      />
+      {/* Score card */}
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-center">
+            <p className="text-4xl font-bold text-foreground">
+              {totalRuns}/{wickets}
+            </p>
+            <p className="text-muted-foreground text-sm mt-1">
+              {overs}.{legalBallsInOver} overs
+            </p>
+          </div>
+          <div className="flex justify-between mt-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Striker</p>
+              <p className="font-medium">
+                {matchState.strikerId ? getPlayerName(matchState.strikerId) : "—"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-muted-foreground">Bowler</p>
+              <p className="font-medium">
+                {matchState.bowlerId ? getPlayerName(matchState.bowlerId) : "—"}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Batsmen Stats */}
-      <BatsmanStatsPanel striker={strikerStats} nonStriker={nonStrikerStats} />
-
-      {/* Bowler Stats */}
-      <BowlerStatsPanel bowler={bowlerStats} />
-
-      {/* Over Timeline */}
-      <OverTimeline balls={match.deliveries} currentOver={currentOver} />
-
-      {/* Delivery Buttons */}
-      {!match.isFinished && (
-        <div className="space-y-2">
+      {/* Scoring buttons */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Score Delivery</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           {/* Run buttons */}
-          <div className="grid grid-cols-6 gap-1.5">
-            {RUN_BUTTONS.map(runs => (
-              <button
+          <div className="grid grid-cols-4 gap-2">
+            {[0, 1, 2, 3, 4, 6].map((runs) => (
+              <Button
                 key={runs}
-                onClick={() => handleDelivery(runs)}
+                variant={runs === 4 || runs === 6 ? "default" : "outline"}
+                className={runs === 6 ? "bg-accent text-accent-foreground hover:bg-accent/90" : ""}
+                onClick={() => handleDelivery(runs, {})}
                 disabled={recordDelivery.isPending}
-                className="tap-target rounded-lg font-display font-bold text-lg flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
-                style={{
-                  background: runs === 4
-                    ? 'oklch(0.45 0.15 240)'
-                    : runs === 6
-                    ? 'oklch(0.22 0.07 240)'
-                    : runs === 0
-                    ? 'oklch(0.93 0.01 240)'
-                    : 'oklch(0.65 0.18 45)',
-                  color: runs === 0
-                    ? 'oklch(0.35 0.05 240)'
-                    : 'oklch(0.97 0.005 240)',
-                  border: runs === 0 ? '1px solid oklch(0.88 0.015 240)' : 'none',
-                  minHeight: '44px',
-                }}
               >
-                {runs === 0 ? '•' : runs}
-              </button>
+                {runs === 0 ? "Dot" : runs}
+              </Button>
             ))}
           </div>
 
-          {/* Extras row */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {[
-              { label: 'Wide', action: () => handleDelivery(1, { isWide: true }) },
-              { label: 'No Ball', action: () => handleDelivery(1, { isNoBall: true }) },
-              { label: 'Bye', action: () => handleDelivery(0, { isBye: true }) },
-              { label: 'Leg Bye', action: () => handleDelivery(0, { isLegBye: true }) },
-            ].map(({ label, action }) => (
-              <button
-                key={label}
-                onClick={action}
-                disabled={recordDelivery.isPending}
-                className="tap-target rounded-lg text-xs font-semibold flex items-center justify-center transition-all active:scale-95 disabled:opacity-50"
-                style={{
-                  background: 'oklch(0.65 0.18 45 / 0.12)',
-                  color: 'oklch(0.45 0.15 45)',
-                  border: '1px solid oklch(0.65 0.18 45 / 0.3)',
-                  minHeight: '44px',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+          {/* Extras */}
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDelivery(1, { isWide: true })}
+              disabled={recordDelivery.isPending}
+            >
+              Wide
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDelivery(1, { isNoBall: true })}
+              disabled={recordDelivery.isPending}
+            >
+              No Ball
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowWicketModal(true)}
+              disabled={recordDelivery.isPending}
+            >
+              Wicket
+            </Button>
           </div>
 
-          {/* Wicket button */}
-          <button
-            onClick={() => setShowWicketModal(true)}
-            disabled={recordDelivery.isPending}
-            className="w-full tap-target rounded-lg font-display font-bold text-lg flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-            style={{
-              background: 'oklch(0.45 0.18 25)',
-              color: 'oklch(0.97 0.005 240)',
-              minHeight: '44px',
-            }}
-          >
-            🚨 WICKET
-          </button>
-        </div>
+          {/* End of over / innings buttons */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEndOfOverModal(true)}
+              disabled={recordDelivery.isPending}
+            >
+              End of Over
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowEndOfInningsModal(true)}
+              disabled={recordDelivery.isPending}
+            >
+              End Innings
+            </Button>
+          </div>
+
+          {recordDelivery.isPending && (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={14} className="animate-spin" />
+              Recording...
+            </div>
+          )}
+
+          {recordDelivery.isError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {recordDelivery.error instanceof Error
+                  ? recordDelivery.error.message
+                  : "Failed to record delivery"}
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modals — use onClose prop (not onOpenChange) */}
+      {showWicketModal && matchState.strikerId && (
+        <WicketModal
+          open={showWicketModal}
+          onClose={() => setShowWicketModal(false)}
+          battingTeamPlayers={battingTeamPlayers}
+          allPlayers={allPlayers}
+          dismissedBatsmanId={matchState.strikerId}
+          onConfirm={(wicketType, nextBatsmanId) => {
+            handleDelivery(0, {}, wicketType);
+            matchState.setStrikerId(nextBatsmanId);
+            setShowWicketModal(false);
+          }}
+        />
       )}
 
-      {match.isFinished && (
-        <div className="text-center py-4">
-          <p className="text-muted-foreground text-sm mb-3">This match has been completed.</p>
-          <Button
-            onClick={() => router.navigate({ to: `/scorecard/${matchId}` })}
-            style={{ background: 'oklch(0.65 0.18 45)', color: 'oklch(0.1 0.02 240)' }}
-          >
-            View Full Scorecard
-          </Button>
-        </div>
+      {showEndOfOverModal && (
+        <EndOfOverModal
+          open={showEndOfOverModal}
+          onClose={() => setShowEndOfOverModal(false)}
+          bowlingTeamPlayers={bowlingTeamPlayers}
+          allPlayers={allPlayers}
+          currentBowlerId={matchState.bowlerId}
+          onConfirm={(nextBowlerId) => {
+            matchState.setBowlerId(nextBowlerId);
+            matchState.swapBatsmen();
+            setShowEndOfOverModal(false);
+          }}
+        />
       )}
 
-      {/* Modals */}
-      <WicketModal
-        open={showWicketModal}
-        onClose={() => setShowWicketModal(false)}
-        striker={strikerPlayer}
-        nonStriker={nonStrikerPlayer}
-        fieldingTeam={bowlingTeam?.players ?? []}
-        onConfirm={handleWicketConfirm}
-      />
-
-      <EndOfOverModal
-        open={showEndOfOver}
-        overNumber={currentOver}
-        bowlingTeamPlayers={bowlingTeam?.players ?? []}
-        currentBowlerId={bowlerId ?? BigInt(0)}
-        maxOversPerBowler={maxOversPerBowler}
-        bowlerOverCounts={bowlerOverCounts}
-        onSelectBowler={handleSelectNextBowler}
-      />
-
-      <EndOfInningsModal
-        open={showEndOfInnings}
-        inningsNumber={currentInnings}
-        totalRuns={totalRuns}
-        wickets={wickets}
-        overs={formatOvers(legalBalls)}
-        battingTeamName={battingTeam?.name ?? 'Batting Team'}
-        nextBattingTeamPlayers={nextBattingTeam?.players ?? []}
-        nextBowlingTeamPlayers={nextBowlingTeam?.players ?? []}
-        onStartSecondInnings={handleStartSecondInnings}
-        onEndMatch={handleEndMatch}
-      />
+      {showEndOfInningsModal && (
+        <EndOfInningsModal
+          open={showEndOfInningsModal}
+          onClose={() => setShowEndOfInningsModal(false)}
+          battingTeamPlayers={bowlingTeamPlayers}
+          bowlingTeamPlayers={battingTeamPlayers}
+          allPlayers={allPlayers}
+          onConfirm={(openerId1, openerId2, newBowlerId) => {
+            matchState.setStrikerId(openerId1);
+            matchState.setNonStrikerId(openerId2);
+            matchState.setBowlerId(newBowlerId);
+            setShowEndOfInningsModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

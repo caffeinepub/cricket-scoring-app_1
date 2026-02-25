@@ -202,6 +202,7 @@ export interface Team {
     logo: string;
     name: string;
     color: string;
+    squad: Array<PlayerId>;
     players: Array<Player>;
 }
 export interface backendInterface {
@@ -214,6 +215,8 @@ export interface backendInterface {
     getTeam(teamId: TeamId): Promise<Team | null>;
     getTournamentRules(): Promise<TournamentRules>;
     recordDelivery(matchId: MatchId, delivery: Delivery): Promise<void>;
+    resetAllData(): Promise<void>;
+    selectSquad(teamId: TeamId, squad: Array<PlayerId>): Promise<void>;
     updateMatchRules(matchId: MatchId, newRules: MatchRules): Promise<void>;
     updateTournamentRules(rules: TournamentRules): Promise<void>;
 }
@@ -343,6 +346,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.recordDelivery(arg0, to_candid_Delivery_n24(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async resetAllData(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.resetAllData();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.resetAllData();
+            return result;
+        }
+    }
+    async selectSquad(arg0: TeamId, arg1: Array<PlayerId>): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.selectSquad(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.selectSquad(arg0, arg1);
             return result;
         }
     }

@@ -1,251 +1,173 @@
-import { useState } from 'react';
-import { Search, Settings, BookOpen, Trophy, ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { useTournamentRules } from '../hooks/useQueries';
-import { cricketRules, getTournamentRules, type CricketRuleCategory } from '../data/cricketRules';
-import ConfigureTournamentRulesModal from '../components/ConfigureTournamentRulesModal';
-
-interface RuleCategoryProps {
-  category: CricketRuleCategory;
-  isExpanded: boolean;
-  onToggle: () => void;
-  searchTerm: string;
-}
-
-function RuleCategory({ category, isExpanded, onToggle, searchTerm }: RuleCategoryProps) {
-  const filteredRules = category.rules.filter(
-    (r) =>
-      r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (filteredRules.length === 0) return null;
-
-  return (
-    <div
-      className="rounded-xl overflow-hidden"
-      style={{
-        background: 'oklch(1 0 0)',
-        border: '1px solid oklch(0.88 0.015 240)',
-        boxShadow: '0 2px 8px oklch(0.22 0.07 240 / 0.08)',
-      }}
-    >
-      <button
-        className="w-full flex items-center justify-between p-4 text-left"
-        onClick={onToggle}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{category.icon}</span>
-          <span className="font-display text-base font-bold" style={{ color: 'oklch(0.22 0.07 240)' }}>
-            {category.category}
-          </span>
-          <Badge
-            className="text-xs"
-            style={{
-              background: 'oklch(0.65 0.18 45 / 0.12)',
-              color: 'oklch(0.55 0.15 45)',
-              border: '1px solid oklch(0.65 0.18 45 / 0.25)',
-            }}
-          >
-            {filteredRules.length}
-          </Badge>
-        </div>
-        {isExpanded ? (
-          <ChevronUp size={16} style={{ color: 'oklch(0.5 0.03 240)' }} />
-        ) : (
-          <ChevronDown size={16} style={{ color: 'oklch(0.5 0.03 240)' }} />
-        )}
-      </button>
-
-      {isExpanded && (
-        <div className="border-t" style={{ borderColor: 'oklch(0.93 0.01 240)' }}>
-          {filteredRules.map((rule, idx) => (
-            <div
-              key={idx}
-              className="px-4 py-3 border-b last:border-b-0"
-              style={{ borderColor: 'oklch(0.93 0.01 240)' }}
-            >
-              <p className="text-sm font-semibold mb-0.5" style={{ color: 'oklch(0.22 0.07 240)' }}>
-                {rule.title}
-              </p>
-              <p className="text-xs leading-relaxed" style={{ color: 'oklch(0.5 0.03 240)' }}>
-                {rule.content}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import { useState } from "react";
+import { BookOpen, Settings, AlertCircle, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { useTournamentRules } from "@/hooks/useQueries";
+import ConfigureTournamentRulesModal from "@/components/ConfigureTournamentRulesModal";
+import { cricketRules, getTournamentRules } from "@/data/cricketRules";
+import type { CricketRuleCategory } from "@/data/cricketRules";
 
 export default function Rules() {
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('standard');
-  const [configOpen, setConfigOpen] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const {
+    data: tournamentRules,
+    isLoading,
+    isError,
+    error,
+  } = useTournamentRules();
 
-  const { data: tournamentConfig, isLoading: rulesLoading } = useTournamentRules();
-  const tournamentRules = tournamentConfig ? getTournamentRules(tournamentConfig) : [];
-
-  const toggleCategory = (cat: string) => {
-    setExpandedCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  };
-
-  const filteredStandard = cricketRules.filter((cat) =>
-    cat.rules.some(
-      (r) =>
-        r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.content.toLowerCase().includes(search.toLowerCase())
-    )
-  );
-
-  const filteredTournament = tournamentRules.filter((cat) =>
-    cat.rules.some(
-      (r) =>
-        r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.content.toLowerCase().includes(search.toLowerCase())
-    )
-  );
+  const tournamentRuleCategories: CricketRuleCategory[] = tournamentRules
+    ? getTournamentRules(tournamentRules)
+    : [];
 
   return (
-    <div className="p-4 space-y-5">
-      {/* Page Header */}
-      <div
-        className="rounded-2xl p-5"
-        style={{
-          background: 'linear-gradient(135deg, oklch(0.22 0.07 240), oklch(0.15 0.06 240))',
-          boxShadow: '0 4px 12px oklch(0.22 0.07 240 / 0.2)',
-        }}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl font-bold" style={{ color: 'oklch(0.97 0.005 240)' }}>
-              Rules
-            </h1>
-            <p className="text-sm mt-0.5" style={{ color: 'oklch(0.75 0.03 240)' }}>
-              Cricket rules &amp; tournament configuration
-            </p>
-          </div>
-          <BookOpen size={28} style={{ color: 'oklch(0.65 0.18 45)' }} />
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Rules</h2>
+          <p className="text-sm text-muted-foreground">
+            Cricket rules and tournament configuration
+          </p>
         </div>
-      </div>
-
-      {/* Search */}
-      <div className="relative">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2"
-          style={{ color: 'oklch(0.6 0.03 240)' }}
-        />
-        <Input
-          placeholder="Search rules..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-          style={{ border: '1px solid oklch(0.88 0.015 240)', borderRadius: '0.75rem' }}
-        />
-      </div>
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList
-          className="w-full rounded-xl p-1"
-          style={{ background: 'oklch(0.22 0.07 240)' }}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setShowConfigModal(true)}
         >
-          <TabsTrigger
-            value="standard"
-            className="flex-1 rounded-lg text-sm font-semibold transition-all data-[state=active]:bg-[oklch(0.65_0.18_45)] data-[state=active]:text-[oklch(0.1_0.02_240)]"
-            style={{
-              color: activeTab === 'standard' ? 'oklch(0.1 0.02 240)' : 'oklch(0.7 0.03 240)',
-            }}
-          >
-            <BookOpen size={14} className="mr-1.5" />
+          <Settings size={14} className="mr-1" />
+          Configure
+        </Button>
+      </div>
+
+      <Tabs defaultValue="standard">
+        <TabsList className="w-full">
+          <TabsTrigger value="standard" className="flex-1">
             Standard Rules
           </TabsTrigger>
-          <TabsTrigger
-            value="tournament"
-            className="flex-1 rounded-lg text-sm font-semibold transition-all data-[state=active]:bg-[oklch(0.65_0.18_45)] data-[state=active]:text-[oklch(0.1_0.02_240)]"
-            style={{
-              color: activeTab === 'tournament' ? 'oklch(0.1 0.02 240)' : 'oklch(0.7 0.03 240)',
-            }}
-          >
-            <Trophy size={14} className="mr-1.5" />
+          <TabsTrigger value="tournament" className="flex-1">
             Tournament Rules
           </TabsTrigger>
         </TabsList>
 
-        {/* Standard Rules */}
-        <TabsContent value="standard" className="mt-4 space-y-3">
-          {filteredStandard.length === 0 ? (
-            <div className="text-center py-8" style={{ color: 'oklch(0.5 0.03 240)' }}>
-              No rules found for &quot;{search}&quot;
-            </div>
-          ) : (
-            filteredStandard.map((category) => (
-              <RuleCategory
-                key={category.category}
-                category={category}
-                isExpanded={expandedCategories.has(category.category)}
-                onToggle={() => toggleCategory(category.category)}
-                searchTerm={search}
-              />
-            ))
-          )}
+        {/* Standard Rules Tab */}
+        <TabsContent value="standard" className="mt-4">
+          <Accordion type="single" collapsible className="space-y-2">
+            {cricketRules.map((category, idx) => (
+              <AccordionItem
+                key={idx}
+                value={`standard-${idx}`}
+                className="border rounded-lg px-4"
+              >
+                <AccordionTrigger className="hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {category.rules.length}
+                    </Badge>
+                    <span className="font-semibold">{category.category}</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-3 pb-2">
+                    {category.rules.map((rule, rIdx) => (
+                      <div key={rIdx} className="space-y-1">
+                        <p className="font-medium text-sm">{rule.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {rule.content}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </TabsContent>
 
-        {/* Tournament Rules */}
-        <TabsContent value="tournament" className="mt-4 space-y-3">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => setConfigOpen(true)}
-              size="sm"
-              className="flex items-center gap-2 font-semibold"
-              style={{
-                background: 'oklch(0.65 0.18 45)',
-                color: 'oklch(0.1 0.02 240)',
-                border: 'none',
-              }}
-            >
-              <Settings size={14} />
-              Configure Rules
-            </Button>
-          </div>
-
-          {rulesLoading ? (
-            <div className="text-center py-8">
-              <div
-                className="w-8 h-8 rounded-full border-2 animate-spin mx-auto"
-                style={{ borderColor: 'oklch(0.65 0.18 45)', borderTopColor: 'transparent' }}
-              />
+        {/* Tournament Rules Tab */}
+        <TabsContent value="tournament" className="mt-4">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              ))}
             </div>
-          ) : filteredTournament.length === 0 ? (
-            <div className="text-center py-8" style={{ color: 'oklch(0.5 0.03 240)' }}>
-              {search ? `No rules found for "${search}"` : 'No tournament rules configured yet.'}
-            </div>
+          ) : isError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to load tournament rules:{" "}
+                {error instanceof Error ? error.message : "Unknown error"}
+              </AlertDescription>
+            </Alert>
+          ) : tournamentRuleCategories.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center">
+                <BookOpen
+                  size={40}
+                  className="mx-auto mb-3 text-muted-foreground/40"
+                />
+                <p className="text-muted-foreground">
+                  No tournament rules configured yet
+                </p>
+                <Button
+                  className="mt-3"
+                  size="sm"
+                  onClick={() => setShowConfigModal(true)}
+                >
+                  Configure Now
+                </Button>
+              </CardContent>
+            </Card>
           ) : (
-            filteredTournament.map((category) => (
-              <RuleCategory
-                key={category.category}
-                category={category}
-                isExpanded={expandedCategories.has(category.category)}
-                onToggle={() => toggleCategory(category.category)}
-                searchTerm={search}
-              />
-            ))
+            <Accordion type="single" collapsible className="space-y-2">
+              {tournamentRuleCategories.map((category, idx) => (
+                <AccordionItem
+                  key={idx}
+                  value={`tournament-${idx}`}
+                  className="border rounded-lg px-4"
+                >
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs">
+                        {category.rules.length}
+                      </Badge>
+                      <span className="font-semibold">{category.category}</span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3 pb-2">
+                      {category.rules.map((rule, rIdx) => (
+                        <div key={rIdx} className="space-y-1">
+                          <p className="font-medium text-sm">{rule.title}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {rule.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           )}
         </TabsContent>
       </Tabs>
 
-      <ConfigureTournamentRulesModal open={configOpen} onOpenChange={setConfigOpen} />
+      <ConfigureTournamentRulesModal
+        open={showConfigModal}
+        onOpenChange={setShowConfigModal}
+      />
     </div>
   );
 }

@@ -1,39 +1,72 @@
-import { Card, CardContent } from '@/components/ui/card';
-import type { BowlerStats } from '../lib/matchUtils';
+import { Player } from "@/backend";
+
+interface BowlerStats {
+  playerId: bigint;
+  overs: number;
+  balls: number;
+  maidens: number;
+  runs: number;
+  wickets: number;
+}
 
 interface BowlerStatsPanelProps {
   bowler: BowlerStats | null;
+  players: Player[];
 }
 
-export default function BowlerStatsPanel({ bowler }: BowlerStatsPanelProps) {
-  if (!bowler) return null;
+function getPlayerName(players: Player[], id: bigint): string {
+  return players.find((p) => p.id === id)?.name ?? "Unknown";
+}
+
+function calcEconomy(runs: number, overs: number, balls: number): string {
+  const totalOvers = overs + balls / 6;
+  if (totalOvers === 0) return "0.00";
+  return (runs / totalOvers).toFixed(2);
+}
+
+export default function BowlerStatsPanel({ bowler, players }: BowlerStatsPanelProps) {
+  if (!bowler) {
+    return (
+      <div className="cricket-card p-3">
+        <p className="text-muted-foreground text-sm text-center">No bowler selected</p>
+      </div>
+    );
+  }
+
+  const name = getPlayerName(players, bowler.playerId);
+  const economy = calcEconomy(bowler.runs, bowler.overs, bowler.balls);
 
   return (
-    <Card className="shadow-card">
-      <CardContent className="pt-3 pb-2 px-3">
-        <div className="flex justify-between text-[10px] text-muted-foreground px-2 mb-1">
-          <span>Bowler</span>
-          <div className="flex gap-3">
-            <span>O</span>
-            <span>M</span>
-            <span>R</span>
-            <span>W</span>
-            <span>Eco</span>
+    <div className="cricket-card p-3">
+      <h3 className="font-display text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+        Bowler
+      </h3>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-sm">{name}</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            {bowler.overs}.{bowler.balls} ov
+          </p>
+        </div>
+        <div className="flex gap-4">
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground">R</p>
+            <p className="text-sm font-bold">{bowler.runs}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground">W</p>
+            <p className="text-sm font-bold text-[oklch(0.65_0.18_45)]">{bowler.wickets}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground">Eco</p>
+            <p className="text-sm font-bold">{economy}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-[10px] text-muted-foreground">M</p>
+            <p className="text-sm font-bold">{bowler.maidens}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg bg-cricket-green/10">
-          <div className="flex-1 min-w-0">
-            <span className="text-sm font-semibold truncate">{bowler.name}</span>
-          </div>
-          <div className="flex gap-3 text-right shrink-0">
-            <span className="text-sm font-semibold w-6 text-center">{bowler.overs}</span>
-            <span className="text-sm font-semibold w-4 text-center">{bowler.maidens}</span>
-            <span className="text-sm font-semibold w-6 text-center">{bowler.runs}</span>
-            <span className="text-sm font-semibold w-4 text-center">{bowler.wickets}</span>
-            <span className="text-sm font-semibold w-8 text-center">{bowler.economy}</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

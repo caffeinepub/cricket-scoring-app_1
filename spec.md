@@ -1,16 +1,12 @@
 # Specification
 
 ## Summary
-**Goal:** Add bulk player name upload to the Teams page and retheme the entire app to a professional blue and orange color scheme.
+**Goal:** Fix broken page navigation and rendering so all tabs and pages load correctly after Version 11.
 
 **Planned changes:**
-- Add a "Bulk Add Players" section on the Teams page allowing users to paste newline- or comma-separated player names into a textarea, or upload a `.txt`/`.csv` file
-- Show a parsed name preview before confirming the bulk add
-- Validate each parsed name (non-empty, no duplicates, 11-player team limit) and display a post-add summary of added vs. skipped names with reasons
-- Reuse existing `addPlayer` backend calls for all bulk additions
-- Retheme the entire app from cricket-green/cream to deep navy/dark blue backgrounds and bold orange accents
-- Update Tailwind config color tokens and CSS custom properties to drive the new blue/orange palette globally
-- Apply new palette consistently across all pages and components: Teams, BottomTabNavigation, Layout header, scoring dashboard, scorecard, match history, match setup, rules page, and all modals
-- Refine typography, card borders, shadows, and section hierarchy for a more professional, polished look
+- Audit and fix TanStack Router configuration in `App.tsx` to ensure all routes (Home/MatchHistory, Teams, MatchSetup, LiveScoring, Scorecard, Rules) are correctly defined and render their page components
+- Fix page-level components (`Teams.tsx`, `MatchSetup.tsx`, `MatchHistory.tsx`, `LiveScoring.tsx`, `Scorecard.tsx`, `Rules.tsx`) to handle loading and error states gracefully, add missing default exports, and resolve any broken/circular imports
+- Fix `useQueries.ts` to guard against calling actor methods before the actor is initialized, using enabled flags to prevent premature queries
+- Audit `Layout.tsx` and `BottomTabNavigation.tsx` to ensure the `Outlet` is placed correctly and bottom tab links match the defined routes
 
-**User-visible outcome:** Users can bulk-add players to a team by pasting or uploading a name list, with validation and a clear summary. The entire app now displays a professional deep navy and bold orange theme with clean, polished UI across all pages and modals.
+**User-visible outcome:** All bottom navigation tabs open their respective pages without blank screens or crashes. Pages show a loading indicator while data is fetching and an error message if something goes wrong.
