@@ -1,0 +1,222 @@
+/* Self-hosted fonts only — external CDNs not available in deployed apps */
+@font-face {
+  font-family: "Figtree";
+  src: url("/assets/fonts/Figtree.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: oklch(0.98 0.005 240);
+    --foreground: oklch(0.15 0.02 240);
+
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.15 0.02 240);
+
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.15 0.02 240);
+
+    --primary: oklch(0.28 0.06 240);
+    --primary-foreground: oklch(0.98 0.005 240);
+
+    --secondary: oklch(0.65 0.18 45);
+    --secondary-foreground: oklch(0.15 0.02 240);
+
+    --accent: oklch(0.65 0.18 45);
+    --accent-foreground: oklch(0.15 0.02 240);
+
+    --muted: oklch(0.94 0.01 240);
+    --muted-foreground: oklch(0.45 0.03 240);
+
+    --destructive: oklch(0.55 0.22 25);
+    --destructive-foreground: oklch(0.98 0.005 240);
+
+    --success: oklch(0.55 0.18 145);
+    --success-foreground: oklch(0.98 0.005 240);
+
+    --warning: oklch(0.75 0.18 75);
+    --warning-foreground: oklch(0.15 0.02 240);
+
+    --border: oklch(0.88 0.01 240);
+    --input: oklch(0.88 0.01 240);
+    --ring: oklch(0.65 0.18 45);
+
+    --radius: 0.5rem;
+
+    /* Navy shades */
+    --navy-50: oklch(0.97 0.01 240);
+    --navy-100: oklch(0.93 0.02 240);
+    --navy-200: oklch(0.85 0.04 240);
+    --navy-300: oklch(0.7 0.07 240);
+    --navy-400: oklch(0.55 0.09 240);
+    --navy-500: oklch(0.4 0.1 240);
+    --navy-600: oklch(0.32 0.08 240);
+    --navy-700: oklch(0.25 0.07 240);
+    --navy-800: oklch(0.2 0.06 240);
+    --navy-900: oklch(0.15 0.05 240);
+
+    /* Orange shades */
+    --orange-50: oklch(0.97 0.03 60);
+    --orange-100: oklch(0.93 0.07 60);
+    --orange-200: oklch(0.87 0.12 55);
+    --orange-300: oklch(0.8 0.16 50);
+    --orange-400: oklch(0.72 0.19 47);
+    --orange-500: oklch(0.65 0.2 45);
+    --orange-600: oklch(0.58 0.19 43);
+    --orange-700: oklch(0.5 0.17 42);
+    --orange-800: oklch(0.42 0.14 40);
+    --orange-900: oklch(0.35 0.11 38);
+  }
+
+  .dark {
+    --background: oklch(0.12 0.03 240);
+    --foreground: oklch(0.95 0.005 240);
+
+    --card: oklch(0.17 0.04 240);
+    --card-foreground: oklch(0.95 0.005 240);
+
+    --popover: oklch(0.17 0.04 240);
+    --popover-foreground: oklch(0.95 0.005 240);
+
+    --primary: oklch(0.65 0.18 45);
+    --primary-foreground: oklch(0.12 0.03 240);
+
+    --secondary: oklch(0.25 0.06 240);
+    --secondary-foreground: oklch(0.95 0.005 240);
+
+    --accent: oklch(0.65 0.18 45);
+    --accent-foreground: oklch(0.12 0.03 240);
+
+    --muted: oklch(0.22 0.04 240);
+    --muted-foreground: oklch(0.65 0.03 240);
+
+    --destructive: oklch(0.55 0.22 25);
+    --destructive-foreground: oklch(0.98 0.005 240);
+
+    --success: oklch(0.55 0.18 145);
+    --success-foreground: oklch(0.98 0.005 240);
+
+    --warning: oklch(0.75 0.18 75);
+    --warning-foreground: oklch(0.15 0.02 240);
+
+    --border: oklch(0.28 0.05 240);
+    --input: oklch(0.28 0.05 240);
+    --ring: oklch(0.65 0.18 45);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Figtree", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer base {
+  /* Fix select trigger background so it is visible inside dialogs and
+     other surfaces where bg-transparent would show through */
+  [data-slot="select-trigger"] {
+    background-color: var(--background);
+  }
+
+  /* Ensure dialog content has solid background and visible text */
+  [data-slot="dialog-content"] {
+    background-color: var(--card);
+    color: var(--card-foreground);
+  }
+
+  /* Ensure popover content has solid background */
+  [data-slot="select-content"] {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Cricket-specific utility classes */
+  .cricket-card {
+    @apply bg-card border border-border rounded-lg shadow-sm;
+  }
+
+  .cricket-header {
+    background: linear-gradient(
+      135deg,
+      oklch(0.22 0.06 240) 0%,
+      oklch(0.18 0.05 240) 100%
+    );
+  }
+
+  .score-display {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-primary {
+    @apply bg-secondary text-secondary-foreground hover:opacity-90 active:opacity-80 transition-opacity;
+  }
+
+  .btn-navy {
+    background-color: oklch(0.28 0.06 240);
+    color: oklch(0.98 0.005 240);
+  }
+
+  .btn-navy:hover {
+    background-color: oklch(0.22 0.06 240);
+  }
+
+  .tab-active {
+    color: oklch(0.65 0.18 45);
+    border-bottom: 2px solid oklch(0.65 0.18 45);
+  }
+
+  .nav-active {
+    color: oklch(0.65 0.18 45);
+  }
+
+  .nav-inactive {
+    color: oklch(0.65 0.03 240);
+  }
+}
